@@ -809,3 +809,58 @@ body {
     padding: 18px;
   }
 }
+
+@media (max-width: 768px), (hover: none), (pointer: coarse) {
+  .upgrade-screen {
+    padding-top: clamp(28px, 5vh, 44px);
+  }
+
+  .upgrade-screen h1 {
+    margin-bottom: 8px;
+    font-size: clamp(30px, 8vw, 48px);
+  }
+
+  .upgrade-screen p {
+    font-size: 15px;
+  }
+
+  .upgrade-choices {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    width: min(330px, calc(100vw - 24px));
+    margin-top: 12px;
+  }
+
+  .augment-card {
+    min-height: 136px;
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  .augment-meta {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .augment-rarity,
+  .augment-type {
+    padding: 3px 7px;
+    font-size: 11px;
+  }
+
+  .augment-card strong {
+    margin-bottom: 8px;
+    font-size: 17px;
+  }
+
+  .augment-description,
+  .augment-effect {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .augment-effect {
+    margin-top: 10px;
+    padding-top: 9px;
+  }
+}

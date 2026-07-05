@@ -67,6 +67,33 @@ const playerStart = {
   magnetRadius: 104,
 };
 
+const desktopBalance = {
+  entityScale: 1,
+  playerScale: 1,
+  enemyScale: 1,
+  miniBossScale: 1,
+  midBossScale: 1,
+  bigBossScale: 1,
+  playerSpeedMultiplier: 1,
+  upgradeUiScale: 1,
+  joystickDeadzone: 0,
+};
+
+const mobileBalance = {
+  entityScale: 0.7,
+  playerScale: 0.7,
+  enemyScale: 0.7,
+  miniBossScale: 0.8,
+  midBossScale: 0.8,
+  bigBossScale: 0.8,
+  playerSpeedMultiplier: 0.7,
+  upgradeUiScale: 0.75,
+  joystickDeadzone: 0.08,
+  minPlayerRadius: 10,
+  minEnemyRadius: 9,
+  minBossRadius: 24,
+};
+
 const permanentUpgradeDefinitions = {
   maxHp: {
     name: "생명력 강화",
@@ -384,7 +411,8 @@ const upgrades = [
     description: "플레이어 이동 속도가 증가합니다.",
     effectText: "이동 속도 +10%",
     apply() {
-      player.speed *= 1.1;
+      player.runSpeedMultiplier = (player.runSpeedMultiplier ?? 1) * 1.1;
+      refreshPlayerSpeed();
     },
   },
   {
@@ -698,7 +726,11 @@ function resetGame(startImmediately = hasStartedGame) {
   player = {
     x: window.innerWidth / 2,
     y: window.innerHeight / 2,
-    radius: playerStart.radius,
+    radius: getScaledRadius(playerStart.radius, "player"),
+    baseRadius: playerStart.radius,
+    baseSpeed: playerStart.speed,
+    permanentSpeedMultiplier: 1,
+    runSpeedMultiplier: 1,
     speed: playerStart.speed,
     maxHp: playerStart.maxHp,
     hp: playerStart.maxHp,
@@ -996,7 +1028,8 @@ function applyPermanentUpgrades() {
 
   player.maxHp = playerStart.maxHp + maxHpLevel * 10;
   player.hp = player.maxHp;
-  player.speed = Math.min(playerStart.speed * (1 + moveLevel * 0.03), playerStart.speed * 1.28);
+  player.permanentSpeedMultiplier = Math.min(1 + moveLevel * 0.03, 1.28);
+  refreshPlayerSpeed();
   player.magnetRadius = playerStart.magnetRadius * (1 + magnetLevel * 0.05);
   gameState.expGainMultiplier *= 1 + expLevel * 0.04;
   weapons.globalDamageMultiplier *= 1 + attackLevel * 0.05;
@@ -1489,7 +1522,8 @@ function spawnEnemy() {
     type: type.name,
     x,
     y,
-    radius: type.radius,
+    radius: getScaledRadius(type.radius, "enemy"),
+    baseRadius: type.radius,
     maxHp,
     hp: maxHp,
     speed,
@@ -1551,7 +1585,8 @@ function spawnBoss(typeKey, minute) {
     label: type.label,
     x,
     y,
-    radius: type.radius,
+    radius: getScaledRadius(type.radius, "boss", typeKey),
+    baseRadius: type.radius,
     maxHp: type.hp + Math.floor(minute * type.hp * 0.08),
     hp: type.hp + Math.floor(minute * type.hp * 0.08),
     speed: type.speed,
@@ -2016,7 +2051,8 @@ function summonBossMinions(boss) {
       type: "normal",
       x: boss.x + Math.cos(angle) * (boss.radius + 24),
       y: boss.y + Math.sin(angle) * (boss.radius + 24),
-      radius: type.radius,
+      radius: getScaledRadius(type.radius, "enemy"),
+      baseRadius: type.radius,
       maxHp: type.hp,
       hp: type.hp,
       speed: type.speed,
@@ -3561,6 +3597,74 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function isMobileDevice() {
+  const hasTouch = "ontouchstart" in window || (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0);
+  return window.innerWidth <= 768 || hasTouch;
+}
+
+function getResponsiveBalance() {
+  return isMobileDevice() ? mobileBalance : desktopBalance;
+}
+
+function getScaledRadius(baseRadius, kind, typeKey = "") {
+  const balance = getResponsiveBalance();
+  let scale = balance.entityScale;
+  let minRadius = 0;
+
+  if (kind === "player") {
+    scale = balance.playerScale;
+    minRadius = balance.minPlayerRadius ?? 0;
+  } else if (kind === "enemy") {
+    scale = balance.enemyScale;
+    minRadius = balance.minEnemyRadius ?? 0;
+  } else if (kind === "boss") {
+    if (typeKey === "big") scale = balance.bigBossScale;
+    else if (typeKey === "mid") scale = balance.midBossScale;
+    else scale = balance.miniBossScale;
+    minRadius = balance.minBossRadius ?? 0;
+  }
+
+  if (scale === 1) {
+    return baseRadius;
+  }
+
+  return Math.max(minRadius, Math.round(baseRadius * scale));
+}
+
+function refreshPlayerSpeed() {
+  if (!player) {
+    return;
+  }
+
+  const balance = getResponsiveBalance();
+  const baseSpeed = player.baseSpeed ?? playerStart.speed;
+  const permanentSpeedMultiplier = player.permanentSpeedMultiplier ?? 1;
+  const runSpeedMultiplier = player.runSpeedMultiplier ?? 1;
+
+  player.speed = baseSpeed * permanentSpeedMultiplier * runSpeedMultiplier * balance.playerSpeedMultiplier;
+}
+
+function applyResponsiveEntityScales() {
+  if (player) {
+    player.radius = getScaledRadius(player.baseRadius ?? playerStart.radius, "player");
+    refreshPlayerSpeed();
+    player.x = clamp(player.x, player.radius, window.innerWidth - player.radius);
+    player.y = clamp(player.y, player.radius, window.innerHeight - player.radius);
+  }
+
+  for (const enemy of enemies || []) {
+    const baseRadius = enemy.baseRadius ?? enemyTypes[enemy.type]?.radius ?? enemy.radius;
+    enemy.baseRadius = baseRadius;
+    enemy.radius = getScaledRadius(baseRadius, "enemy");
+  }
+
+  for (const boss of bosses || []) {
+    const baseRadius = boss.baseRadius ?? bossTypes[boss.bossType]?.radius ?? boss.radius;
+    boss.baseRadius = baseRadius;
+    boss.radius = getScaledRadius(baseRadius, "boss", boss.bossType);
+  }
+}
+
 function resetJoystick() {
   joystickActive = false;
   joystickDeltaX = 0;
@@ -3585,13 +3689,17 @@ function updateJoystickFromTouch(touch) {
   const rawDeltaX = touch.clientX - joystickStartX;
   const rawDeltaY = touch.clientY - joystickStartY;
   const distance = Math.hypot(rawDeltaX, rawDeltaY);
-  const limitedDistance = Math.min(distance, joystickMaxDistance);
+  const deadzoneDistance = joystickMaxDistance * getResponsiveBalance().joystickDeadzone;
+  const activeDistance = distance <= deadzoneDistance
+    ? 0
+    : ((Math.min(distance, joystickMaxDistance) - deadzoneDistance) / (joystickMaxDistance - deadzoneDistance)) * joystickMaxDistance;
+  const limitedDistance = Math.min(activeDistance, joystickMaxDistance);
   const angle = Math.atan2(rawDeltaY, rawDeltaX);
 
   joystickDeltaX = Math.cos(angle) * limitedDistance;
   joystickDeltaY = Math.sin(angle) * limitedDistance;
 
-  if (distance === 0) {
+  if (limitedDistance === 0) {
     joystickDeltaX = 0;
     joystickDeltaY = 0;
   }
@@ -3632,11 +3740,7 @@ window.addEventListener("keyup", (event) => {
 
 window.addEventListener("resize", () => {
   resizeCanvas();
-
-  if (player) {
-    player.x = clamp(player.x, player.radius, window.innerWidth - player.radius);
-    player.y = clamp(player.y, player.radius, window.innerHeight - player.radius);
-  }
+  applyResponsiveEntityScales();
 });
 
 startButton?.addEventListener("click", startGame);
