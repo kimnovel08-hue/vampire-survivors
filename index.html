@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neon Survivor Prototype</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <canvas id="gameCanvas" aria-label="2D survival game screen"></canvas>
+      <p class="mobile-orientation-hint">모바일은 가로모드 플레이를 추천합니다.</p>
+
+      <button id="soundHudButton" class="sound-button sound-hud" type="button">Sound: ON</button>
+
+      <section id="startScreen" class="start-screen" aria-live="polite">
+        <div class="start-panel">
+          <h1>Neon Survivor</h1>
+          <p>모바일은 가로모드 플레이를 추천합니다.</p>
+          <p class="save-note">성장 데이터는 기기/브라우저별로 따로 유지됩니다.</p>
+          <p class="soul-summary">Soul <span id="startSoulValue">0</span></p>
+          <div class="start-actions">
+            <button id="startButton" type="button">Start</button>
+            <button id="openPermanentButton" type="button">영구 강화</button>
+            <button id="soundStartButton" class="sound-button" type="button">Sound: ON</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="hud" aria-label="game status">
+        <div class="hud-item">HP <span id="hpValue">100</span></div>
+        <div class="hud-item">Level <span id="levelValue">1</span></div>
+        <div class="hud-item">EXP <span id="expValue">0 / 20</span></div>
+        <div class="hud-item">Score <span id="scoreValue">0</span></div>
+        <div class="hud-item">Time <span id="timeValue">0.0</span>s</div>
+      </section>
+
+      <section id="levelUpScreen" class="upgrade-screen hidden" aria-live="polite">
+        <h1>증강 선택!</h1>
+        <p>새로운 힘을 고르세요</p>
+        <div id="upgradeChoices" class="upgrade-choices"></div>
+        <button id="rerollButton" class="reroll-button hidden" type="button">재선택</button>
+      </section>
+
+      <section id="gameOverScreen" class="game-over hidden" aria-live="polite">
+        <div class="result-panel">
+          <h1>생존 결과</h1>
+          <div id="resultStats" class="result-stats"></div>
+          <div class="result-actions">
+            <button id="restartButton" type="button">다시 시작</button>
+            <button id="openPermanentGameOverButton" type="button">영구 강화</button>
+            <button id="mainMenuButton" type="button">메인 화면</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="permanentUpgradeScreen" class="permanent-screen hidden" aria-live="polite">
+        <div class="permanent-panel">
+          <div class="permanent-header">
+            <div>
+              <h1>영구 강화</h1>
+              <p>보유 Soul <span id="permanentSoulValue">0</span></p>
+              <p class="save-note">저장 데이터는 현재 브라우저에 저장됩니다.</p>
+            </div>
+            <button id="closePermanentButton" class="plain-button" type="button">닫기</button>
+          </div>
+          <p id="permanentMessage" class="permanent-message" aria-live="polite"></p>
+          <div id="permanentUpgradeList" class="permanent-upgrade-list"></div>
+          <div class="permanent-actions">
+            <button id="newRunPermanentButton" type="button">새 게임 시작</button>
+            <button id="resetSaveButton" class="danger-button" type="button">저장 초기화</button>
+          </div>
+        </div>
+      </section>
+
+      <div id="joystick" class="joystick" aria-label="mobile movement joystick">
+        <div id="joystickKnob" class="joystick-knob"></div>
+      </div>
+    </main>
+
+    <script src="game.js"></script>
+  </body>
+</html>
