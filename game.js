@@ -13,6 +13,10 @@ const pausePermanentButton = document.getElementById("pausePermanentButton");
 const pauseSynergyButton = document.getElementById("pauseSynergyButton");
 const pauseSoundButton = document.getElementById("pauseSoundButton");
 const pauseMainMenuButton = document.getElementById("pauseMainMenuButton");
+const pauseRunStats = document.getElementById("pauseRunStats");
+const pauseBuildSummary = document.getElementById("pauseBuildSummary");
+const pauseOwnedUpgrades = document.getElementById("pauseOwnedUpgrades");
+const pauseActiveSynergies = document.getElementById("pauseActiveSynergies");
 const difficultyNormalButton = document.getElementById("difficultyNormalButton");
 const difficultyHardButton = document.getElementById("difficultyHardButton");
 const difficultyHellButton = document.getElementById("difficultyHellButton");
@@ -928,6 +932,10 @@ function resetGame(startImmediately = hasStartedGame) {
     maxHp: playerStart.maxHp,
     hp: playerStart.maxHp,
     magnetRadius: playerStart.magnetRadius,
+    facingAngle: -Math.PI / 2,
+    lastMoveDirX: 0,
+    lastMoveDirY: -1,
+    isMoving: false,
   };
 
   gameState = {
@@ -1636,6 +1644,7 @@ function pauseGame(reason = "manual") {
 
   gameState.isPaused = true;
   gameState.pauseReason = reason;
+  renderPauseMenu();
   pauseScreen?.classList.remove("hidden");
   setUiBlocking(true);
   resetJoystick();
@@ -1666,10 +1675,222 @@ function updatePauseUi() {
   }
 }
 
+function renderPauseMenu() {
+  renderPauseRunStats();
+  renderCurrentBuildSummary();
+  renderOwnedUpgrades();
+  renderActiveSynergies();
+}
+
+function renderPauseRunStats() {
+  if (!pauseRunStats || !gameState || !player) {
+    return;
+  }
+
+  const difficulty = difficultyConfigs[gameState.selectedDifficulty] ?? difficultyConfigs.normal;
+  const rows = [
+    ["생존 시간", formatTime(gameState.elapsedTime)],
+    ["현재 레벨", `Lv. ${gameState.level}`],
+    ["난이도", difficulty.label],
+    ["체력", `${Math.max(0, Math.ceil(player.hp))} / ${player.maxHp}`],
+    ["처치 수", gameState.kills],
+  ];
+
+  pauseRunStats.innerHTML = rows
+    .map(([label, value]) => `<div class="pause-stat"><span>${label}</span><strong>${value}</strong></div>`)
+    .join("");
+}
+
+function renderCurrentBuildSummary() {
+  if (!pauseBuildSummary || !gameState || !player || !weapons) {
+    return;
+  }
+
+  const balance = getResponsiveBalance();
+  const deviceBaseSpeed = playerStart.speed * (balance.playerSpeedMultiplier ?? 1);
+  const attackBonus = getSafePercent(getAttackMultiplier() - 1);
+  const fireDelay = Math.max(0.01, getBulletFireDelay());
+  const attackSpeedBonus = getSafePercent(0.42 / fireDelay - 1);
+  const moveSpeedBonus = getSafePercent(player.speed / Math.max(1, deviceBaseSpeed) - 1);
+  const maxHpBonus = Math.max(0, Math.round(player.maxHp - playerStart.maxHp));
+  const magnetBonus = getSafePercent(player.magnetRadius / playerStart.magnetRadius - 1);
+
+  const rows = [
+    ["공격력", formatSignedPercent(attackBonus)],
+    ["공격속도", formatSignedPercent(attackSpeedBonus)],
+    ["이동속도", formatSignedPercent(moveSpeedBonus)],
+    ["최대 체력", `+${maxHpBonus}`],
+    ["관통", `+${Math.max(0, weapons.bullet?.pierce ?? 0)}`],
+    ["자석 범위", formatSignedPercent(magnetBonus)],
+    ["활성 시너지", `${getActiveSynergyList().length}개`],
+  ];
+
+  pauseBuildSummary.innerHTML = rows
+    .map(([label, value]) => `<div class="pause-summary-item"><span>${label}</span><strong>${value}</strong></div>`)
+    .join("");
+}
+
+function renderOwnedUpgrades() {
+  if (!pauseOwnedUpgrades) {
+    return;
+  }
+
+  const groups = getOwnedUpgradeGroups();
+
+  if (groups.length === 0) {
+    pauseOwnedUpgrades.innerHTML = `<p class="pause-empty">아직 선택한 증강이 없습니다.</p>`;
+    return;
+  }
+
+  pauseOwnedUpgrades.innerHTML = groups
+    .map((group) => `
+      <section class="pause-upgrade-group">
+        <h3>${group.label}</h3>
+        <div class="pause-chip-list">
+          ${group.items.map((item) => `
+            <span class="pause-upgrade-chip rarity-${item.rarity}">
+              <span>[${item.rarityLabel}]</span> ${item.name} ${item.amountLabel}
+            </span>
+          `).join("")}
+        </div>
+      </section>
+    `)
+    .join("");
+}
+
+function renderActiveSynergies() {
+  if (!pauseActiveSynergies) {
+    return;
+  }
+
+  const activeSynergies = getActiveSynergyList();
+
+  if (activeSynergies.length === 0) {
+    pauseActiveSynergies.innerHTML = `<p class="pause-empty">아직 활성화된 시너지가 없습니다.</p>`;
+    return;
+  }
+
+  pauseActiveSynergies.innerHTML = activeSynergies
+    .map((synergy) => `
+      <article class="pause-synergy-card">
+        <strong>${synergy.name}</strong>
+        <p>조건: ${synergy.conditionText}</p>
+        <p>효과: ${synergy.description}</p>
+      </article>
+    `)
+    .join("");
+}
+
+function getOwnedUpgradeGroups() {
+  const categoryOrder = [
+    { id: "weapon", label: "무기" },
+    { id: "attack", label: "공격" },
+    { id: "survival", label: "생존" },
+    { id: "growth", label: "성장" },
+    { id: "special", label: "특수" },
+    { id: "legendary", label: "전설" },
+  ];
+  const groups = new Map(categoryOrder.map((category) => [category.id, { ...category, items: [] }]));
+  const upgradeOrder = new Map(upgrades.map((upgrade, index) => [upgrade.id, index]));
+  const entries = Object.entries(gameState?.upgradeCounts ?? {})
+    .filter(([, count]) => Number(count) > 0)
+    .sort(([leftId], [rightId]) => (upgradeOrder.get(leftId) ?? 9999) - (upgradeOrder.get(rightId) ?? 9999));
+
+  for (const [upgradeId, count] of entries) {
+    const upgrade = upgrades.find((item) => item.id === upgradeId);
+
+    // 삭제된 무기나 오래된 저장 찌꺼기는 UI에서 조용히 무시한다.
+    if (!upgrade) {
+      continue;
+    }
+
+    const category = getUpgradeCategory(upgrade);
+    const group = groups.get(category) ?? groups.get("special");
+    const stackCount = getUpgradeStackCount(upgradeId);
+    const rarity = upgrade.rarity ?? "common";
+    const rarityLabel = rarityInfo[rarity]?.label ?? "일반";
+
+    group.items.push({
+      name: upgrade.name,
+      rarity,
+      rarityLabel,
+      amountLabel: getOwnedUpgradeAmountLabel(upgrade, stackCount),
+      count,
+    });
+  }
+
+  return categoryOrder
+    .map((category) => groups.get(category.id))
+    .filter((group) => group.items.length > 0);
+}
+
+function getUpgradeCategory(upgrade) {
+  if (upgrade.type === "무기 강화") return "weapon";
+  if (upgrade.rarity === "legendary") return "legendary";
+
+  const growthIds = new Set(["fast-learning", "magnet", "reroll"]);
+  const survivalIds = new Set(["sturdy-body", "vampire", "shield", "shockwave", "cold-aura", "force-push"]);
+  const attackIds = new Set([
+    "sharp-bullets",
+    "quick-hands",
+    "piercing-shot",
+    "weak-spot",
+    "double-shot",
+    "explosive-bullets",
+    "chain-lightning",
+    "guardian-aura",
+    "blood-pact",
+  ]);
+
+  if (growthIds.has(upgrade.id)) return "growth";
+  if (survivalIds.has(upgrade.id)) return "survival";
+  if (attackIds.has(upgrade.id)) return "attack";
+  return "special";
+}
+
+function getOwnedUpgradeAmountLabel(upgrade, stackCount) {
+  if (upgrade.type === "무기 강화") {
+    if (upgrade.id === "weapon-bullet") return `Lv.${weapons?.bullet?.level ?? Math.max(1, stackCount + 1)}`;
+    if (upgrade.id === "weapon-bomb") return `Lv.${weapons?.bomb?.level ?? Math.max(1, stackCount)}`;
+    return `Lv.${Math.max(1, stackCount)}`;
+  }
+
+  if ((upgrade.maxStacks ?? Infinity) === 1) {
+    return "보유";
+  }
+
+  return `x${stackCount}`;
+}
+
+function getUpgradeStackCount(upgradeId) {
+  const count = Number(gameState?.upgradeCounts?.[upgradeId] ?? 0);
+  return Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));
+}
+
+function getActiveSynergyList() {
+  return Array.from(gameState?.activeSynergies ?? [])
+    .map((synergyId) => synergyDefinitions[synergyId])
+    .filter(Boolean);
+}
+
+function getSafePercent(value) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return Math.round(safeValue * 100);
+}
+
+function formatSignedPercent(percent) {
+  const safePercent = Number.isFinite(percent) ? percent : 0;
+  return `${safePercent >= 0 ? "+" : ""}${safePercent}%`;
+}
+
 function openPermanentFromPause() {
+  openPermanentUpgradeReadOnly();
+}
+
+function openPermanentUpgradeReadOnly() {
   openPermanentUpgradeMenu({
     readOnly: true,
-    message: "영구 강화는 게임오버 후 또는 메인 메뉴에서 구매할 수 있습니다.",
+    message: "현재 게임 중에는 구매할 수 없고, 보유 강화만 확인할 수 있습니다.",
   });
 }
 
@@ -2632,6 +2853,8 @@ function updatePlayer(deltaTime) {
     moveY /= length;
   }
 
+  updatePlayerFacingDirection(moveX, moveY);
+
   const speed = player.speed * (gameState.speedBuffTimer > 0 ? 1.2 : 1);
 
   player.x += moveX * speed * deltaTime;
@@ -2639,6 +2862,24 @@ function updatePlayer(deltaTime) {
 
   player.x = clamp(player.x, player.radius, window.innerWidth - player.radius);
   player.y = clamp(player.y, player.radius, window.innerHeight - player.radius);
+}
+
+function updatePlayerFacingDirection(inputX, inputY) {
+  if (!player) {
+    return;
+  }
+
+  const inputLength = Math.hypot(inputX, inputY);
+
+  if (inputLength <= 0.01) {
+    player.isMoving = false;
+    return;
+  }
+
+  player.lastMoveDirX = inputX / inputLength;
+  player.lastMoveDirY = inputY / inputLength;
+  player.facingAngle = Math.atan2(player.lastMoveDirY, player.lastMoveDirX);
+  player.isMoving = true;
 }
 
 function updateWeapons(deltaTime) {
@@ -4204,6 +4445,36 @@ function drawPlayer() {
     shadow: true,
     shadowBlur: 18,
   });
+  drawPlayerDirectionIndicator();
+}
+
+function drawPlayerDirectionIndicator() {
+  if (!player || gameState?.isGameOver || gameState?.isGameCleared) {
+    return;
+  }
+
+  const angle = player.facingAngle ?? -Math.PI / 2;
+  const distance = player.radius + 10;
+  const size = Math.max(5, player.radius * 0.32);
+  const x = player.x + Math.cos(angle) * distance;
+  const y = player.y + Math.sin(angle) * distance;
+  const alpha = player.isMoving ? 0.88 : 0.62;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size * 0.78, -size * 0.62);
+  ctx.lineTo(-size * 0.78, size * 0.62);
+  ctx.closePath();
+  ctx.fillStyle = "#fff2a8";
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.72)";
+  ctx.lineWidth = Math.max(2, size * 0.28);
+  ctx.stroke();
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawHitFlash(entity) {
