@@ -22,6 +22,7 @@
           <div class="start-actions">
             <button id="startButton" type="button">Start</button>
             <button id="openPermanentButton" type="button">영구 강화</button>
+            <button id="openSynergyCollectionButton" type="button">히든 시너지</button>
             <button id="soundStartButton" class="sound-button" type="button">Sound: ON</button>
           </div>
         </div>
@@ -51,6 +52,29 @@
             <button id="openPermanentGameOverButton" type="button">영구 강화</button>
             <button id="mainMenuButton" type="button">메인 화면</button>
           </div>
+        </div>
+      </section>
+
+      <section id="synergyPopupScreen" class="synergy-popup hidden" aria-live="polite">
+        <div class="synergy-popup-panel">
+          <p class="synergy-popup-kicker">히든 시너지 발견!</p>
+          <h1 id="synergyPopupName">시너지 이름</h1>
+          <p><strong>조건:</strong> <span id="synergyPopupCondition">조건</span></p>
+          <p><strong>효과:</strong> <span id="synergyPopupDescription">효과</span></p>
+          <button id="closeSynergyPopupButton" type="button">확인</button>
+        </div>
+      </section>
+
+      <section id="synergyCollectionScreen" class="synergy-collection hidden" aria-live="polite">
+        <div class="synergy-collection-panel">
+          <div class="synergy-collection-header">
+            <div>
+              <h1>히든 시너지</h1>
+              <p class="save-note">해금 정보는 현재 브라우저에 저장됩니다.</p>
+            </div>
+            <button id="closeSynergyCollectionButton" class="plain-button" type="button">닫기</button>
+          </div>
+          <div id="synergyCollectionList" class="synergy-collection-list"></div>
         </div>
       </section>
 

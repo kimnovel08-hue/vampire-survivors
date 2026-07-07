@@ -30,6 +30,15 @@ const permanentMessage = document.getElementById("permanentMessage");
 const closePermanentButton = document.getElementById("closePermanentButton");
 const newRunPermanentButton = document.getElementById("newRunPermanentButton");
 const resetSaveButton = document.getElementById("resetSaveButton");
+const openSynergyCollectionButton = document.getElementById("openSynergyCollectionButton");
+const synergyPopupScreen = document.getElementById("synergyPopupScreen");
+const synergyPopupName = document.getElementById("synergyPopupName");
+const synergyPopupCondition = document.getElementById("synergyPopupCondition");
+const synergyPopupDescription = document.getElementById("synergyPopupDescription");
+const closeSynergyPopupButton = document.getElementById("closeSynergyPopupButton");
+const synergyCollectionScreen = document.getElementById("synergyCollectionScreen");
+const synergyCollectionList = document.getElementById("synergyCollectionList");
+const closeSynergyCollectionButton = document.getElementById("closeSynergyCollectionButton");
 
 // ===== 설정/상수 =====
 const keys = new Set();
@@ -38,6 +47,7 @@ const RECORD_KEY = "neon-survivor-records-v2";
 const SOUND_KEY = "neon-survivor-sound-enabled";
 const SAVE_KEY = "survivorGameSave_v1";
 const joystickMaxDistance = 46;
+const SYNERGY_COLLECTION_SIZE = 20;
 
 const assetPaths = {
   player: "assets/player.jpg",
@@ -219,6 +229,89 @@ const rarityInfo = {
   rare: { label: "희귀", chance: 0.28 },
   epic: { label: "영웅", chance: 0.13 },
   legendary: { label: "전설", chance: 0.04 },
+};
+
+const synergyDefinitions = {
+  bloodCounter: {
+    id: "bloodCounter",
+    name: "피의 반격",
+    hiddenName: "???",
+    conditionText: "체력 증가 계열 + 흡혈",
+    description: "피해를 받을 때마다 피의 힘으로 주변 적에게 반격 피해를 줍니다.",
+    condition() {
+      return hasAnyUpgrade(["sturdy-body"]) && hasUpgrade("vampire");
+    },
+  },
+  rapidPierce: {
+    id: "rapidPierce",
+    name: "고속 관통",
+    hiddenName: "???",
+    conditionText: "관통탄 + 공격 속도 증가 계열",
+    description: "관통탄의 흐름이 빨라져 주기적으로 공격속도가 크게 증가합니다.",
+    condition() {
+      return hasUpgrade("piercing-shot") && hasAnyUpgrade(["quick-hands", "infinite-barrage"]);
+    },
+  },
+  rupturePierce: {
+    id: "rupturePierce",
+    name: "파열 관통탄",
+    hiddenName: "???",
+    conditionText: "관통탄 + 폭발탄",
+    description: "관통탄이 마지막 지점에서 파열되어 작은 폭발을 일으킵니다.",
+    condition() {
+      return hasUpgrade("piercing-shot") && hasUpgrade("explosive-bullets");
+    },
+  },
+  chainPierce: {
+    id: "chainPierce",
+    name: "연쇄 관통",
+    hiddenName: "???",
+    conditionText: "관통탄 + 번개 연쇄",
+    description: "관통된 적들 사이로 번개가 더 멀리 퍼져나갑니다.",
+    condition() {
+      return hasUpgrade("piercing-shot") && hasUpgrade("chain-lightning");
+    },
+  },
+  shrapnelBomb: {
+    id: "shrapnelBomb",
+    name: "파편 폭탄",
+    hiddenName: "???",
+    conditionText: "폭탄 강화 + 폭탄 주머니",
+    description: "폭탄이 터진 뒤 작은 파편 폭탄들이 흩어져 추가 폭발을 일으킵니다.",
+    condition() {
+      return weapons?.bomb?.unlocked && hasUpgrade("bomb-pocket");
+    },
+  },
+  flameBomb: {
+    id: "flameBomb",
+    name: "화염 폭탄",
+    hiddenName: "???",
+    conditionText: "폭탄 강화 + 화염 폭발",
+    description: "폭탄이 터진 자리에 불길이 남아 적을 계속 불태웁니다.",
+    condition() {
+      return weapons?.bomb?.unlocked && hasUpgrade("flame-burst");
+    },
+  },
+  frostAura: {
+    id: "frostAura",
+    name: "빙결 오라",
+    hiddenName: "???",
+    conditionText: "냉기 오라 + 수호 오라",
+    description: "차가운 수호 오라가 적을 느리게 만들고, 오래 머문 적을 잠시 얼립니다.",
+    condition() {
+      return hasUpgrade("cold-aura") && hasUpgrade("guardian-aura");
+    },
+  },
+  knowledgeSurge: {
+    id: "knowledgeSurge",
+    name: "지식 폭주",
+    hiddenName: "???",
+    conditionText: "경험치 증가 계열 + 자석",
+    description: "지식을 빠르게 흡수할수록 잠시 동안 공격력이 폭주합니다.",
+    condition() {
+      return hasAnyUpgrade(["fast-learning"]) && hasUpgrade("magnet");
+    },
+  },
 };
 
 const enemyTypes = {
@@ -444,11 +537,14 @@ const upgrades = [
     name: "폭탄 주머니",
     rarity: "rare",
     type: "증강",
-    maxStacks: 1,
-    description: "폭탄 무기를 해금합니다. 가까운 적 위치에 주기적으로 폭탄을 던집니다.",
-    effectText: "10초마다 가장 가까운 적에게 폭탄 1개 생성",
+    maxStacks: 2,
+    description: "폭탄 무기가 해금된 뒤 폭탄 시너지를 강화합니다.",
+    effectText: "파편 폭탄 시너지의 파편 수 증가",
+    isAvailable() {
+      return weapons.bomb.unlocked;
+    },
     apply() {
-      unlockBombWeapon();
+      gameState.bombPocket.stacks = Math.min(2, (gameState.upgradeCounts["bomb-pocket"] ?? 0) + 1);
     },
   },
   {
@@ -775,6 +871,9 @@ function resetGame(startImmediately = hasStartedGame) {
     upgradeCounts: {},
     selectedUpgradeCount: 0,
     selectedLegendaryCount: 0,
+    activeSynergies: new Set(),
+    pendingSynergyPopups: [],
+    isSynergyPopupOpen: false,
     spawnedBossMinutes: new Set(),
     expGainMultiplier: 1,
     killHealChance: 0,
@@ -783,6 +882,17 @@ function resetGame(startImmediately = hasStartedGame) {
     attackBuffTimer: 0,
     speedBuffTimer: 0,
     magnetBoostTimer: 0,
+    bombPocket: {
+      stacks: 0,
+    },
+    synergy: {
+      bloodCounterCooldown: 0,
+      rapidPierceCooldown: 10,
+      rapidPierceActiveTimer: 0,
+      knowledgeOrbCount: 0,
+      knowledgeCooldown: 0,
+      knowledgeBuffTimer: 0,
+    },
     bestScore: records.bestScore,
     bestTime: records.bestTime,
     weaponDamage: {},
@@ -918,6 +1028,8 @@ function resetGame(startImmediately = hasStartedGame) {
   levelUpScreen.classList.add("hidden");
   gameOverScreen.classList.add("hidden");
   permanentUpgradeScreen?.classList.add("hidden");
+  synergyPopupScreen?.classList.add("hidden");
+  synergyCollectionScreen?.classList.add("hidden");
   startScreen?.classList.toggle("hidden", startImmediately);
   setUiBlocking(!startImmediately);
   updateSoundButtons();
@@ -947,6 +1059,16 @@ function setUiBlocking(isBlocking) {
 }
 
 // ===== 저장 시스템 =====
+function createDefaultSynergyUnlocks() {
+  const unlockedSynergies = {};
+
+  for (const key of Object.keys(synergyDefinitions)) {
+    unlockedSynergies[key] = false;
+  }
+
+  return unlockedSynergies;
+}
+
 function createDefaultPermanentSave() {
   const permanentUpgrades = {};
 
@@ -960,6 +1082,7 @@ function createDefaultPermanentSave() {
     bestScore: 0,
     bestSurvivalTime: 0,
     permanentUpgrades,
+    unlockedSynergies: createDefaultSynergyUnlocks(),
     totalRuns: 0,
     totalKills: 0,
     totalBossKills: 0,
@@ -981,10 +1104,17 @@ function migrateSaveData(data) {
   const upgrades = source.permanentUpgrades && typeof source.permanentUpgrades === "object"
     ? source.permanentUpgrades
     : {};
+  const unlockedSynergies = source.unlockedSynergies && typeof source.unlockedSynergies === "object"
+    ? source.unlockedSynergies
+    : {};
 
   for (const [key, definition] of Object.entries(permanentUpgradeDefinitions)) {
     const level = Number(upgrades[key] ?? 0);
     defaults.permanentUpgrades[key] = clamp(Math.floor(Number.isFinite(level) ? level : 0), 0, definition.maxLevel);
+  }
+
+  for (const key of Object.keys(synergyDefinitions)) {
+    defaults.unlockedSynergies[key] = Boolean(unlockedSynergies[key]);
   }
 
   defaults.version = 1;
@@ -1323,6 +1453,19 @@ function playExplosionSound() {
   if (!canPlaySound("explosion", 0.16)) return;
   playNoise(0.16, 0.25);
   playTone(90, 0.18, "sawtooth", 0.18, 0, 45);
+}
+
+function playSynergyUnlockSound() {
+  if (!canPlaySound("synergy-unlock", 0.35)) return;
+  playTone(520, 0.09, "triangle", 0.22, 0, 780);
+  playTone(780, 0.11, "triangle", 0.2, 0.08, 1040);
+  playTone(1040, 0.13, "sine", 0.18, 0.18, 1320);
+}
+
+function playSynergyActivateSound() {
+  if (!canPlaySound("synergy-activate", 0.2)) return;
+  playTone(640, 0.07, "sine", 0.16, 0, 920);
+  playTone(920, 0.06, "sine", 0.12, 0.06, 1180);
 }
 
 function startBgm() {
@@ -1690,7 +1833,18 @@ function getTargetKey(target) {
 }
 
 function getAttackMultiplier() {
-  return weapons.globalDamageMultiplier * (gameState.attackBuffTimer > 0 ? 1.3 : 1);
+  const supplyBuff = gameState.attackBuffTimer > 0 ? 1.3 : 1;
+  const knowledgeBuff = isSynergyActive("knowledgeSurge") && gameState.synergy.knowledgeBuffTimer > 0 ? 1.12 : 1;
+
+  return weapons.globalDamageMultiplier * supplyBuff * knowledgeBuff;
+}
+
+function getBulletFireDelay() {
+  const rapidPierceBuff = isSynergyActive("rapidPierce") && gameState.synergy.rapidPierceActiveTimer > 0
+    ? 1.8
+    : 1;
+
+  return weapons.bullet.fireDelay / rapidPierceBuff;
 }
 
 function shootAtNearestEnemy() {
@@ -1785,15 +1939,21 @@ function spawnMeteor() {
   });
 }
 
-function createFlameZone(x, y) {
+function createFlameZone(x, y, options = {}) {
   flameZones.push({
     x,
     y,
-    radius: gameState.flameBurst.radius,
+    radius: options.radius ?? gameState.flameBurst.radius,
     age: 0,
-    duration: gameState.flameBurst.duration,
-    damagePerSecond: gameState.flameBurst.damagePerSecond,
+    duration: options.duration ?? gameState.flameBurst.duration,
+    damagePerSecond: options.damagePerSecond ?? gameState.flameBurst.damagePerSecond,
+    bossDamageMultiplier: options.bossDamageMultiplier ?? 1,
+    source: options.source ?? "화염 폭발",
   });
+
+  if (flameZones.length > 24) {
+    flameZones.splice(0, flameZones.length - 24);
+  }
 }
 
 function addEffect(effect) {
@@ -1852,16 +2012,20 @@ function createShockwave(x, y, radius, damage, force, color, source = "충격파
   });
 }
 
-function explodeAt(x, y, radius, damage, color = "rgba(255, 212, 71, 0.5)", source = "폭발") {
-  playExplosionSound();
-
+function damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier = 1, knockback = 0, options = {}) {
   for (const target of getAllTargets()) {
     const distance = getDistance(x, y, target.x, target.y);
 
     if (distance < radius + target.radius) {
-      damageTarget(target, target.kind === "boss" ? damage * 0.45 : damage, 8, source);
+      const finalDamage = target.kind === "boss" ? damage * bossDamageMultiplier : damage;
+      damageTarget(target, finalDamage, knockback, source, options);
     }
   }
+}
+
+function explodeAt(x, y, radius, damage, color = "rgba(255, 212, 71, 0.5)", source = "폭발", bossDamageMultiplier = 0.45) {
+  playExplosionSound();
+  damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier, 8);
 
   addEffect({
     type: "circle",
@@ -1873,7 +2037,7 @@ function explodeAt(x, y, radius, damage, color = "rgba(255, 212, 71, 0.5)", sour
   });
 }
 
-function chainLightningFrom(x, y, damage) {
+function chainLightningFrom(x, y, damage, extraTargets = 0, bossDamageMultiplier = 1) {
   const targets = getAllTargets()
     .map((target) => ({
       target,
@@ -1881,7 +2045,7 @@ function chainLightningFrom(x, y, damage) {
     }))
     .filter((entry) => entry.distance <= gameState.chainLightning.range)
     .sort((a, b) => a.distance - b.distance)
-    .slice(0, gameState.chainLightning.maxTargets);
+    .slice(0, Math.min(6, gameState.chainLightning.maxTargets + extraTargets));
 
   for (const entry of targets) {
     lightningLines.push({
@@ -1892,7 +2056,11 @@ function chainLightningFrom(x, y, damage) {
       age: 0,
       duration: 0.16,
     });
-    damageTarget(entry.target, damage, 3, "번개 연쇄");
+    damageTarget(entry.target, entry.target.kind === "boss" ? damage * bossDamageMultiplier : damage, 3, "번개 연쇄");
+  }
+
+  if (lightningLines.length > 48) {
+    lightningLines.splice(0, lightningLines.length - 48);
   }
 }
 
@@ -1930,7 +2098,7 @@ function updatePlayer(deltaTime) {
 
 function updateWeapons(deltaTime) {
   weapons.bullet.timer += deltaTime;
-  if (weapons.bullet.timer >= weapons.bullet.fireDelay) {
+  if (weapons.bullet.timer >= getBulletFireDelay()) {
     weapons.bullet.timer = 0;
     shootAtNearestEnemy();
   }
@@ -2016,13 +2184,70 @@ function updateTimedEffects(deltaTime) {
   }
 }
 
+function updateSynergies(deltaTime) {
+  const state = gameState.synergy;
+
+  state.bloodCounterCooldown = Math.max(0, state.bloodCounterCooldown - deltaTime);
+  state.knowledgeCooldown = Math.max(0, state.knowledgeCooldown - deltaTime);
+  state.knowledgeBuffTimer = Math.max(0, state.knowledgeBuffTimer - deltaTime);
+
+  if (isSynergyActive("rapidPierce")) {
+    state.rapidPierceCooldown -= deltaTime;
+    state.rapidPierceActiveTimer = Math.max(0, state.rapidPierceActiveTimer - deltaTime);
+
+    if (state.rapidPierceCooldown <= 0 && state.rapidPierceActiveTimer <= 0) {
+      triggerRapidPierceBurst();
+    }
+  }
+
+  if (
+    isSynergyActive("knowledgeSurge") &&
+    state.knowledgeOrbCount >= 25 &&
+    state.knowledgeCooldown <= 0 &&
+    state.knowledgeBuffTimer <= 0
+  ) {
+    triggerKnowledgeSurge();
+  }
+}
+
+function triggerRapidPierceBurst() {
+  gameState.synergy.rapidPierceActiveTimer = 3;
+  gameState.synergy.rapidPierceCooldown = 10;
+  showBanner("고속 관통!", "#d8f5ff");
+  addFloatingText("고속 관통!", player.x, player.y - player.radius - 30, "#d8f5ff", 22, 1);
+  addEffect({
+    type: "ring",
+    x: player.x,
+    y: player.y,
+    radius: player.radius + 54,
+    duration: 0.36,
+    color: "rgba(216, 245, 255, 0.58)",
+  });
+  playSynergyActivateSound();
+}
+
+function triggerKnowledgeSurge() {
+  gameState.synergy.knowledgeOrbCount = Math.max(0, gameState.synergy.knowledgeOrbCount - 25);
+  gameState.synergy.knowledgeBuffTimer = 5;
+  gameState.synergy.knowledgeCooldown = 5;
+  addFloatingText("지식 폭주!", player.x, player.y - player.radius - 32, "#64f7b4", 22, 1.1);
+  showBanner("지식 폭주!", "#64f7b4");
+  playSynergyActivateSound();
+}
+
 function updateBosses(deltaTime) {
   for (const boss of bosses) {
     const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+    const frostSlow =
+      isSynergyActive("frostAura") &&
+      gameState.aura.enabled &&
+      getDistance(player.x, player.y, boss.x, boss.y) < gameState.aura.radius + boss.radius
+        ? 0.85
+        : 1;
 
     boss.spawnAge = (boss.spawnAge ?? 0) + deltaTime;
-    boss.x += Math.cos(angle) * boss.speed * deltaTime;
-    boss.y += Math.sin(angle) * boss.speed * deltaTime;
+    boss.x += Math.cos(angle) * boss.speed * frostSlow * deltaTime;
+    boss.y += Math.sin(angle) * boss.speed * frostSlow * deltaTime;
     boss.touchCooldown = Math.max(0, boss.touchCooldown - deltaTime);
     boss.orbCooldown = Math.max(0, boss.orbCooldown - deltaTime);
 
@@ -2139,11 +2364,64 @@ function updateBombs(deltaTime) {
 
     if (!bomb.exploded && bomb.age >= bomb.fuseTime) {
       bomb.exploded = true;
-      explodeAt(bomb.x, bomb.y, bomb.radius, bomb.damage, "rgba(255, 212, 71, 0.5)", "폭탄");
+      explodeAt(
+        bomb.x,
+        bomb.y,
+        bomb.radius,
+        bomb.damage,
+        bomb.isFragment ? "rgba(255, 156, 74, 0.42)" : "rgba(255, 212, 71, 0.5)",
+        bomb.isFragment ? "파편 폭탄" : "폭탄",
+        bomb.isFragment ? 0.5 : 0.45,
+      );
+
+      if (!bomb.isFragment) {
+        handleBombSynergyExplosion(bomb);
+      }
     }
   }
 
   bombs = bombs.filter((bomb) => bomb.age < bomb.fuseTime + 0.25);
+}
+
+function handleBombSynergyExplosion(bomb) {
+  if (isSynergyActive("flameBomb")) {
+    createFlameZone(bomb.x, bomb.y, {
+      radius: Math.max(38, bomb.radius * 0.72),
+      duration: 2.5,
+      damagePerSecond: bomb.damage * 0.15,
+      bossDamageMultiplier: 0.5,
+      source: "화염 폭탄",
+    });
+  }
+
+  if (isSynergyActive("shrapnelBomb")) {
+    spawnShrapnelBombs(bomb);
+  }
+}
+
+function spawnShrapnelBombs(bomb) {
+  if (bombs.length > 48) {
+    return;
+  }
+
+  const stacks = Math.max(1, gameState.bombPocket.stacks, gameState.upgradeCounts["bomb-pocket"] ?? 0);
+  const count = stacks >= 2 ? 5 : 4;
+  const spreadDistance = bomb.radius * 0.62;
+
+  for (let index = 0; index < count; index++) {
+    const angle = (TAU * index) / count + Math.random() * 0.28;
+
+    bombs.push({
+      x: bomb.x + Math.cos(angle) * spreadDistance,
+      y: bomb.y + Math.sin(angle) * spreadDistance,
+      radius: Math.max(24, bomb.radius * 0.42),
+      damage: bomb.damage * 0.3,
+      fuseTime: 0.18,
+      age: 0,
+      exploded: false,
+      isFragment: true,
+    });
+  }
 }
 
 function updateFlameZones(deltaTime) {
@@ -2154,7 +2432,9 @@ function updateFlameZones(deltaTime) {
       const distance = getDistance(zone.x, zone.y, target.x, target.y);
 
       if (distance < zone.radius + target.radius) {
-        damageTarget(target, zone.damagePerSecond * deltaTime, 0, "화염 폭발", {
+        const damage = zone.damagePerSecond * deltaTime * (target.kind === "boss" ? zone.bossDamageMultiplier : 1);
+
+        damageTarget(target, damage, 0, zone.source, {
           showText: false,
         });
       }
@@ -2210,12 +2490,42 @@ function updateEnemies(deltaTime) {
   for (const enemy of enemies) {
     const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
     let speedMultiplier = timeSlowMultiplier;
+    const distanceToPlayer = getDistance(player.x, player.y, enemy.x, enemy.y);
 
     if (
       gameState.coldAura.enabled &&
-      getDistance(player.x, player.y, enemy.x, enemy.y) < gameState.coldAura.radius
+      distanceToPlayer < gameState.coldAura.radius
     ) {
       speedMultiplier *= 1 - gameState.coldAura.slow;
+    }
+
+    enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - deltaTime);
+    enemy.frostCooldown = Math.max(0, (enemy.frostCooldown ?? 0) - deltaTime);
+
+    if (isSynergyActive("frostAura") && gameState.aura.enabled && distanceToPlayer < gameState.aura.radius + enemy.radius) {
+      speedMultiplier *= 0.78;
+      enemy.frostStayTimer = (enemy.frostStayTimer ?? 0) + deltaTime;
+
+      if (enemy.frostStayTimer >= 2 && enemy.frostCooldown <= 0) {
+        enemy.freezeTimer = 0.7;
+        enemy.frostCooldown = 8;
+        enemy.frostStayTimer = 0;
+        addFloatingText("빙결!", enemy.x, enemy.y - enemy.radius, "#8be9ff", 16, 0.8);
+        addEffect({
+          type: "ring",
+          x: enemy.x,
+          y: enemy.y,
+          radius: enemy.radius + 16,
+          duration: 0.32,
+          color: "rgba(139, 233, 255, 0.62)",
+        });
+      }
+    } else {
+      enemy.frostStayTimer = 0;
+    }
+
+    if (enemy.freezeTimer > 0) {
+      speedMultiplier = 0;
     }
 
     enemy.x += Math.cos(angle) * enemy.speed * speedMultiplier * deltaTime;
@@ -2243,8 +2553,25 @@ function updateExpOrbs(deltaTime) {
 
     if (distance < player.radius + orb.radius) {
       addExperience(orb.value);
+      onExpOrbCollected();
       expOrbs.splice(index, 1);
     }
+  }
+}
+
+function onExpOrbCollected() {
+  if (!isSynergyActive("knowledgeSurge")) {
+    return;
+  }
+
+  gameState.synergy.knowledgeOrbCount += 1;
+
+  if (
+    gameState.synergy.knowledgeOrbCount >= 25 &&
+    gameState.synergy.knowledgeCooldown <= 0 &&
+    gameState.synergy.knowledgeBuffTimer <= 0
+  ) {
+    triggerKnowledgeSurge();
   }
 }
 
@@ -2432,11 +2759,34 @@ function handleBulletTargetCollisions() {
         }
 
         if (gameState.chainLightning.enabled) {
-          chainLightningFrom(hitX, hitY, bullet.damage * gameState.chainLightning.damageRatio);
+          const extraTargets = isSynergyActive("chainPierce")
+            ? Math.min(2, bullet.hitTargetKeys.size)
+            : 0;
+          const bossDamageMultiplier = isSynergyActive("chainPierce") ? 0.55 : 1;
+
+          chainLightningFrom(
+            hitX,
+            hitY,
+            bullet.damage * gameState.chainLightning.damageRatio,
+            extraTargets,
+            bossDamageMultiplier,
+          );
         }
 
         bullet.pierceRemaining -= 1;
         shouldRemoveBullet = bullet.pierceRemaining < 0;
+
+        if (shouldRemoveBullet && isSynergyActive("rupturePierce")) {
+          explodeAt(
+            hitX,
+            hitY,
+            46,
+            bullet.damage * 0.45,
+            "rgba(255, 156, 74, 0.34)",
+            "파열 관통탄",
+            0.5,
+          );
+        }
         break;
       }
     }
@@ -2495,6 +2845,10 @@ function damagePlayer(amount, triggerShockwave) {
   playPlayerDamageSound();
   addFloatingText(`-${Math.ceil(amount)}`, player.x, player.y - 28, "#ff6b81", 18, 0.8);
 
+  if (isSynergyActive("bloodCounter")) {
+    triggerBloodCounter();
+  }
+
   if (triggerShockwave && gameState.onHitShockwave.enabled && gameState.onHitShockwave.timer <= 0) {
     createShockwave(
       player.x,
@@ -2511,6 +2865,28 @@ function damagePlayer(amount, triggerShockwave) {
   if (player.hp <= 0) {
     endGame();
   }
+}
+
+function triggerBloodCounter() {
+  if (gameState.synergy.bloodCounterCooldown > 0) {
+    return;
+  }
+
+  const radius = 122;
+  const damage = player.maxHp * 0.08;
+
+  gameState.synergy.bloodCounterCooldown = 1.5;
+  playExplosionSound();
+  damageTargetsInRadius(player.x, player.y, radius, damage, "피의 반격", 0.5, 4);
+  addFloatingText("피의 반격!", player.x, player.y - player.radius - 26, "#ff6b81", 21, 1);
+  addEffect({
+    type: "ring",
+    x: player.x,
+    y: player.y,
+    radius,
+    duration: 0.34,
+    color: "rgba(255, 80, 104, 0.58)",
+  });
 }
 
 function damageTarget(target, rawDamage, knockback, source, options = {}) {
@@ -2619,7 +2995,7 @@ function addExperience(amount) {
 }
 
 function checkLevelUp() {
-  if (gameState.isLevelingUp || gameState.exp < gameState.expToNext) {
+  if (gameState.isLevelingUp || gameState.isSynergyPopupOpen || gameState.exp < gameState.expToNext) {
     return;
   }
 
@@ -2704,6 +3080,214 @@ function getAvailableUpgrades() {
   });
 }
 
+// ===== 히든 시너지 =====
+function hasUpgrade(upgradeId) {
+  return (gameState?.upgradeCounts?.[upgradeId] ?? 0) > 0;
+}
+
+function hasAnyUpgrade(upgradeIds) {
+  return upgradeIds.some((upgradeId) => hasUpgrade(upgradeId));
+}
+
+function isSynergyActive(synergyId) {
+  return Boolean(gameState?.activeSynergies?.has(synergyId));
+}
+
+function initializeSynergyState(synergyId) {
+  if (!gameState?.synergy) {
+    return;
+  }
+
+  if (synergyId === "rapidPierce") {
+    gameState.synergy.rapidPierceCooldown = 0;
+    gameState.synergy.rapidPierceActiveTimer = 0;
+  }
+
+  if (synergyId === "knowledgeSurge") {
+    gameState.synergy.knowledgeOrbCount = 0;
+    gameState.synergy.knowledgeCooldown = 0;
+    gameState.synergy.knowledgeBuffTimer = 0;
+  }
+
+  if (synergyId === "shrapnelBomb") {
+    gameState.bombPocket.stacks = Math.max(gameState.bombPocket.stacks, gameState.upgradeCounts["bomb-pocket"] ?? 0);
+  }
+}
+
+function checkSynergies() {
+  if (!gameState?.activeSynergies) {
+    return;
+  }
+
+  for (const synergy of Object.values(synergyDefinitions)) {
+    if (isSynergyActive(synergy.id)) {
+      continue;
+    }
+
+    try {
+      if (synergy.condition()) {
+        activateSynergy(synergy.id);
+      }
+    } catch {
+      // 조건 체크 중 예외가 나도 게임 진행은 막지 않는다.
+    }
+  }
+}
+
+function activateSynergy(synergyId) {
+  const synergy = synergyDefinitions[synergyId];
+
+  if (!synergy || isSynergyActive(synergyId)) {
+    return;
+  }
+
+  gameState.activeSynergies.add(synergyId);
+  initializeSynergyState(synergyId);
+
+  if (unlockSynergy(synergyId)) {
+    showSynergyUnlockPopup(synergy);
+    return;
+  }
+
+  showBanner(`시너지 활성화: ${synergy.name}`, "#8be9ff");
+  addFloatingText(synergy.name, player.x, player.y - player.radius - 28, "#8be9ff", 21, 1.2);
+  playSynergyActivateSound();
+}
+
+function unlockSynergy(synergyId) {
+  if (!permanentSave.unlockedSynergies) {
+    permanentSave.unlockedSynergies = createDefaultSynergyUnlocks();
+  }
+
+  if (permanentSave.unlockedSynergies[synergyId]) {
+    return false;
+  }
+
+  permanentSave.unlockedSynergies[synergyId] = true;
+  savePermanentSave();
+  renderSynergyCollection();
+  return true;
+}
+
+function showSynergyUnlockPopup(synergy) {
+  if (!gameState) {
+    return;
+  }
+
+  gameState.pendingSynergyPopups.push(synergy);
+
+  if (!gameState.isSynergyPopupOpen) {
+    openNextSynergyPopup();
+  }
+}
+
+function openNextSynergyPopup() {
+  if (!gameState?.pendingSynergyPopups?.length || !synergyPopupScreen) {
+    gameState.isSynergyPopupOpen = false;
+    return;
+  }
+
+  const synergy = gameState.pendingSynergyPopups.shift();
+
+  if (synergyPopupName) synergyPopupName.textContent = synergy.name;
+  if (synergyPopupCondition) synergyPopupCondition.textContent = synergy.conditionText;
+  if (synergyPopupDescription) synergyPopupDescription.textContent = synergy.description;
+
+  synergyPopupScreen.classList.remove("hidden");
+  gameState.isSynergyPopupOpen = true;
+  setUiBlocking(true);
+  resetJoystick();
+  playSynergyUnlockSound();
+}
+
+function closeSynergyPopup() {
+  synergyPopupScreen?.classList.add("hidden");
+
+  if (gameState?.pendingSynergyPopups?.length) {
+    openNextSynergyPopup();
+    return;
+  }
+
+  if (gameState) {
+    gameState.isSynergyPopupOpen = false;
+    lastTime = performance.now();
+  }
+
+  const collectionOpen = synergyCollectionScreen && !synergyCollectionScreen.classList.contains("hidden");
+  const shouldBlock =
+    !gameState?.isStarted ||
+    gameState?.isLevelingUp ||
+    gameState?.isGameOver ||
+    collectionOpen;
+
+  setUiBlocking(shouldBlock);
+
+  if (gameState?.isStarted && !gameState.isGameOver && !gameState.isLevelingUp) {
+    checkLevelUp();
+  }
+}
+
+function renderSynergyCollection() {
+  if (!synergyCollectionList) {
+    return;
+  }
+
+  const definitions = Object.values(synergyDefinitions);
+  const unlocked = permanentSave.unlockedSynergies ?? createDefaultSynergyUnlocks();
+
+  synergyCollectionList.innerHTML = "";
+
+  for (let index = 0; index < SYNERGY_COLLECTION_SIZE; index++) {
+    const synergy = definitions[index];
+    const card = document.createElement("article");
+
+    if (!synergy) {
+      card.className = "synergy-card is-coming-soon";
+      card.innerHTML = `
+        <strong>???</strong>
+        <p>조건: ???</p>
+        <p>효과: Coming Soon</p>
+      `;
+      synergyCollectionList.appendChild(card);
+      continue;
+    }
+
+    const isUnlocked = Boolean(unlocked[synergy.id]);
+    card.className = `synergy-card ${isUnlocked ? "is-unlocked" : "is-locked"}`;
+    card.innerHTML = isUnlocked
+      ? `
+        <strong>${synergy.name}</strong>
+        <p>조건: ${synergy.conditionText}</p>
+        <p>효과: ${synergy.description}</p>
+      `
+      : `
+        <strong>${synergy.hiddenName}</strong>
+        <p>조건: ???</p>
+        <p>효과: ???</p>
+      `;
+    synergyCollectionList.appendChild(card);
+  }
+}
+
+function openSynergyCollection() {
+  renderSynergyCollection();
+  synergyCollectionScreen?.classList.remove("hidden");
+  setUiBlocking(true);
+  resetJoystick();
+}
+
+function closeSynergyCollection() {
+  synergyCollectionScreen?.classList.add("hidden");
+
+  const shouldBlock =
+    !gameState?.isStarted ||
+    gameState?.isLevelingUp ||
+    gameState?.isGameOver ||
+    gameState?.isSynergyPopupOpen;
+
+  setUiBlocking(shouldBlock);
+}
+
 // ===== 증강 선택 UI =====
 function renderUpgradeChoices() {
   upgradeChoices.innerHTML = "";
@@ -2769,9 +3353,15 @@ function chooseUpgrade(upgrade, selectedButton = null) {
     gameState.currentUpgrades = [];
     levelUpScreen.classList.add("hidden");
     levelUpScreen.classList.remove("has-legendary");
-    setUiBlocking(false);
     updateHud();
-    checkLevelUp();
+    checkSynergies();
+
+    if (gameState.isSynergyPopupOpen) {
+      setUiBlocking(true);
+    } else {
+      setUiBlocking(false);
+      checkLevelUp();
+    }
   };
 
   if (selectedButton && typeof window.setTimeout === "function") {
@@ -2805,6 +3395,7 @@ function updateGame(deltaTime) {
 
   updatePlayer(deltaTime);
   updateTimedEffects(deltaTime);
+  updateSynergies(deltaTime);
   updateWeapons(deltaTime);
   updateBosses(deltaTime);
   updateBullets(deltaTime);
@@ -3092,7 +3683,14 @@ function drawEnemy(enemy) {
       shadowBlur: 18,
     },
   };
-  const style = styles[enemy.type] || styles.normal;
+  const style = { ...(styles[enemy.type] || styles.normal) };
+
+  if (enemy.freezeTimer > 0) {
+    style.borderColor = "#8be9ff";
+    style.glowColor = "rgba(139, 233, 255, 0.34)";
+    style.shadow = true;
+    style.shadowBlur = 18;
+  }
 
   if (enemy.type === "fast") {
     drawFastEnemyTrail(enemy);
@@ -3423,7 +4021,7 @@ function gameLoop(currentTime) {
   const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.05);
   lastTime = currentTime;
 
-  if (gameState.isStarted && !gameState.isLevelingUp) {
+  if (gameState.isStarted && !gameState.isLevelingUp && !gameState.isSynergyPopupOpen) {
     updateGame(deltaTime);
   } else if (gameState.isStarted) {
     updateVisualEffects(deltaTime);
@@ -3590,6 +4188,7 @@ function resetPermanentSave() {
   }
 
   savePermanentSave();
+  renderSynergyCollection();
 
   if (gameState) {
     gameState.bestScore = 0;
@@ -3703,7 +4302,9 @@ function resetJoystick() {
 }
 
 function updateJoystickFromTouch(touch) {
-  if (!joystick || gameState?.isLevelingUp || gameState?.isGameOver) {
+  const collectionOpen = synergyCollectionScreen && !synergyCollectionScreen.classList.contains("hidden");
+
+  if (!joystick || gameState?.isLevelingUp || gameState?.isGameOver || gameState?.isSynergyPopupOpen || collectionOpen) {
     resetJoystick();
     return;
   }
@@ -3778,6 +4379,9 @@ addButtonClick(mainMenuButton, goToMainMenu);
 addButtonClick(closePermanentButton, closePermanentUpgradeMenu);
 addButtonClick(newRunPermanentButton, startGame);
 addButtonClick(resetSaveButton, resetPermanentSave);
+addButtonClick(openSynergyCollectionButton, openSynergyCollection);
+addButtonClick(closeSynergyCollectionButton, closeSynergyCollection);
+addButtonClick(closeSynergyPopupButton, closeSynergyPopup);
 
 if (joystick) {
   joystick.addEventListener("touchstart", handleJoystickStart, { passive: false });
