@@ -571,6 +571,36 @@ body {
   color: #8be9ff;
 }
 
+.pause-synergy-card.is-active {
+  border-color: rgba(100, 247, 180, 0.42);
+  box-shadow: 0 0 18px rgba(100, 247, 180, 0.12);
+}
+
+.pause-synergy-card.is-locked {
+  border-color: rgba(156, 163, 175, 0.16);
+  background: rgba(20, 23, 30, 0.78);
+}
+
+.pause-synergy-card.is-ultimate {
+  border-color: rgba(255, 212, 71, 0.58);
+  background: rgba(255, 212, 71, 0.1);
+  box-shadow: 0 0 22px rgba(255, 212, 71, 0.16);
+}
+
+.pause-synergy-card.is-ultimate strong {
+  color: #ffd447;
+}
+
+.pause-synergy-status {
+  justify-self: start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(100, 247, 180, 0.18);
+  color: #64f7b4;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .pause-synergy-card p,
 .pause-empty {
   margin: 0;
@@ -623,6 +653,22 @@ body {
   cursor: pointer;
   font: inherit;
   font-weight: 900;
+}
+
+.synergy-popup.is-ultimate .synergy-popup-panel {
+  width: min(560px, calc(100vw - 28px));
+  border: 1px solid rgba(255, 212, 71, 0.68);
+  box-shadow: 0 0 48px rgba(255, 212, 71, 0.24), 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+
+.synergy-popup.is-ultimate .synergy-popup-kicker,
+.synergy-popup.is-ultimate .synergy-popup-panel strong {
+  color: #ffd447;
+}
+
+.synergy-popup.is-ultimate .synergy-popup-panel h1 {
+  color: #ffd447;
+  font-size: clamp(40px, 8vw, 66px);
 }
 
 .synergy-collection-panel {
@@ -681,6 +727,16 @@ body {
   box-shadow: 0 0 24px rgba(255, 212, 71, 0.12);
 }
 
+.synergy-card.is-ultimate {
+  border-color: rgba(255, 212, 71, 0.58);
+  background: rgba(255, 212, 71, 0.09);
+  box-shadow: 0 0 24px rgba(255, 212, 71, 0.16);
+}
+
+.synergy-card.is-ultimate strong {
+  color: #ffd447;
+}
+
 .synergy-card.is-locked,
 .synergy-card.is-coming-soon {
   border-color: rgba(156, 163, 175, 0.18);
@@ -690,6 +746,16 @@ body {
 .synergy-card.is-locked strong,
 .synergy-card.is-coming-soon strong {
   color: #9ca3af;
+}
+
+.synergy-card.is-ultimate.is-locked {
+  border-color: rgba(255, 212, 71, 0.36);
+  background: rgba(47, 37, 15, 0.82);
+  box-shadow: 0 0 20px rgba(255, 212, 71, 0.08);
+}
+
+.synergy-card.is-ultimate.is-locked strong {
+  color: #c9a83d;
 }
 
 .permanent-header {

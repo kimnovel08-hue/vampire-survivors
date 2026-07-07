@@ -72,6 +72,7 @@ const guidePermanentButton = document.getElementById("guidePermanentButton");
 const guideLaterButton = document.getElementById("guideLaterButton");
 const openSynergyCollectionButton = document.getElementById("openSynergyCollectionButton");
 const synergyPopupScreen = document.getElementById("synergyPopupScreen");
+const synergyPopupKicker = document.querySelector ? document.querySelector(".synergy-popup-kicker") : null;
 const synergyPopupName = document.getElementById("synergyPopupName");
 const synergyPopupCondition = document.getElementById("synergyPopupCondition");
 const synergyPopupDescription = document.getElementById("synergyPopupDescription");
@@ -90,6 +91,8 @@ const joystickMaxDistance = 46;
 const SYNERGY_COLLECTION_SIZE = 20;
 const MIN_BULLET_FIRE_DELAY = 0.05;
 const MAX_RUN_SPEED_MULTIPLIER = 2.8;
+const MAX_SPECIAL_PROJECTILES = 54;
+const MAX_ELECTRIC_MINES = 18;
 // 배포 기본값은 false다. true로 바꾸면 10분 대신 30초에 메인보스가 나와 테스트가 쉬워진다.
 const DEBUG_FAST_FINAL_BOSS = false;
 const FINAL_BOSS_TIME = DEBUG_FAST_FINAL_BOSS ? 30 : 600;
@@ -97,48 +100,48 @@ const FINAL_BOSS_TIME = DEBUG_FAST_FINAL_BOSS ? 30 : 600;
 const difficultyConfigs = {
   normal: {
     label: "노멀",
-    enemyHpMultiplier: 1,
-    enemySpeedMultiplier: 1,
-    spawnRateMultiplier: 1,
-    maxEnemyMultiplier: 1,
-    bossHpMultiplier: 1,
-    bossDamageMultiplier: 1,
+    enemyHpMultiplier: 1.08,
+    enemySpeedMultiplier: 1.04,
+    spawnRateMultiplier: 1.08,
+    maxEnemyMultiplier: 1.08,
+    bossHpMultiplier: 1.12,
+    bossDamageMultiplier: 1.06,
     soulMultiplier: 1,
-    fastWeightMultiplier: 1,
-    tankWeightMultiplier: 1,
-    eliteWeightMultiplier: 1,
+    fastWeightMultiplier: 1.05,
+    tankWeightMultiplier: 1.08,
+    eliteWeightMultiplier: 1.1,
     finalBossLabel: "메인보스",
     finalBossColor: "#ffd447",
     finalBossGlow: "rgba(255, 212, 71, 0.36)",
   },
   hard: {
     label: "어려움",
-    enemyHpMultiplier: 1.25,
-    enemySpeedMultiplier: 1.1,
-    spawnRateMultiplier: 1.15,
-    maxEnemyMultiplier: 1.15,
-    bossHpMultiplier: 1.3,
-    bossDamageMultiplier: 1.1,
+    enemyHpMultiplier: 1.38,
+    enemySpeedMultiplier: 1.14,
+    spawnRateMultiplier: 1.24,
+    maxEnemyMultiplier: 1.24,
+    bossHpMultiplier: 1.5,
+    bossDamageMultiplier: 1.16,
     soulMultiplier: 1.2,
-    fastWeightMultiplier: 1.08,
-    tankWeightMultiplier: 1.16,
-    eliteWeightMultiplier: 1.18,
+    fastWeightMultiplier: 1.15,
+    tankWeightMultiplier: 1.25,
+    eliteWeightMultiplier: 1.32,
     finalBossLabel: "강화 메인보스",
     finalBossColor: "#b46cff",
     finalBossGlow: "rgba(180, 108, 255, 0.42)",
   },
   hell: {
     label: "헬",
-    enemyHpMultiplier: 1.6,
-    enemySpeedMultiplier: 1.18,
-    spawnRateMultiplier: 1.3,
-    maxEnemyMultiplier: 1.35,
-    bossHpMultiplier: 1.8,
-    bossDamageMultiplier: 1.2,
+    enemyHpMultiplier: 1.82,
+    enemySpeedMultiplier: 1.23,
+    spawnRateMultiplier: 1.45,
+    maxEnemyMultiplier: 1.5,
+    bossHpMultiplier: 2.15,
+    bossDamageMultiplier: 1.3,
     soulMultiplier: 1.5,
-    fastWeightMultiplier: 1.24,
-    tankWeightMultiplier: 1.38,
-    eliteWeightMultiplier: 1.65,
+    fastWeightMultiplier: 1.35,
+    tankWeightMultiplier: 1.58,
+    eliteWeightMultiplier: 1.95,
     finalBossLabel: "지옥의 메인보스",
     finalBossColor: "#ff5d73",
     finalBossGlow: "rgba(255, 93, 115, 0.5)",
@@ -345,16 +348,18 @@ const rarityInfo = {
 const synergyDefinitions = {
   bloodCounter: {
     id: "bloodCounter",
+    tier: "normal",
     name: "피의 반격",
     hiddenName: "???",
     conditionText: "체력 증가 계열 + 흡혈",
-    description: "피해를 받을 때마다 피의 힘으로 주변 적에게 반격 피해를 줍니다.",
+    description: "피해를 받을 때마다 피의 힘으로 주변 적에게 최대 체력 비례 반격 피해를 줍니다.",
     condition() {
       return hasAnyUpgrade(["sturdy-body", "steel-health", "giant-heart"]) && hasUpgrade("vampire");
     },
   },
   rapidPierce: {
     id: "rapidPierce",
+    tier: "normal",
     name: "고속 관통",
     hiddenName: "???",
     conditionText: "관통탄 + 공격 속도 증가 계열",
@@ -363,18 +368,9 @@ const synergyDefinitions = {
       return hasUpgrade("piercing-shot") && hasAnyUpgrade(["quick-hands", "skilled-hands", "storm-hands", "infinite-barrage"]);
     },
   },
-  rupturePierce: {
-    id: "rupturePierce",
-    name: "파열 관통탄",
-    hiddenName: "???",
-    conditionText: "관통탄 + 폭발탄",
-    description: "관통탄이 마지막 지점에서 파열되어 작은 폭발을 일으킵니다.",
-    condition() {
-      return hasUpgrade("piercing-shot") && hasUpgrade("explosive-bullets");
-    },
-  },
   chainPierce: {
     id: "chainPierce",
+    tier: "normal",
     name: "연쇄 관통",
     hiddenName: "???",
     conditionText: "관통탄 + 번개 연쇄",
@@ -383,18 +379,9 @@ const synergyDefinitions = {
       return hasUpgrade("piercing-shot") && hasUpgrade("chain-lightning");
     },
   },
-  shrapnelBomb: {
-    id: "shrapnelBomb",
-    name: "파편 폭탄",
-    hiddenName: "???",
-    conditionText: "폭탄 강화 + 폭탄 주머니",
-    description: "폭탄이 터진 뒤 작은 파편 폭탄들이 흩어져 추가 폭발을 일으킵니다.",
-    condition() {
-      return weapons?.bomb?.unlocked && hasUpgrade("bomb-pocket");
-    },
-  },
   flameBomb: {
     id: "flameBomb",
+    tier: "normal",
     name: "화염 폭탄",
     hiddenName: "???",
     conditionText: "폭탄 강화 + 화염 폭발",
@@ -405,22 +392,178 @@ const synergyDefinitions = {
   },
   frostAura: {
     id: "frostAura",
+    tier: "normal",
     name: "빙결 오라",
     hiddenName: "???",
     conditionText: "냉기 오라 + 수호 오라",
-    description: "차가운 수호 오라가 적을 느리게 만들고, 오래 머문 적을 잠시 얼립니다.",
+    description: "차가운 수호 오라가 적을 느리게 만들고, 오래 머문 일반 적을 잠시 얼립니다.",
     condition() {
       return hasUpgrade("cold-aura") && hasUpgrade("guardian-aura");
     },
   },
   knowledgeSurge: {
     id: "knowledgeSurge",
+    tier: "normal",
     name: "지식 폭주",
     hiddenName: "???",
     conditionText: "경험치 증가 계열 + 자석",
-    description: "지식을 빠르게 흡수할수록 잠시 동안 공격력이 폭주합니다.",
+    description: "경험치 구슬을 일정 개수 획득하면 잠시 동안 공격력이 증가합니다.",
     condition() {
       return hasAnyUpgrade(["fast-learning", "knowledge-absorption", "explosive-growth"]) && hasUpgrade("magnet");
+    },
+  },
+  acidPyro: {
+    id: "acidPyro",
+    tier: "normal",
+    name: "산성 폭연",
+    hiddenName: "???",
+    conditionText: "산성 포자 + 화염구",
+    description: "산성 웅덩이에 화염구가 닿으면 폭발하고 화염 산성 구름이 남습니다.",
+    condition() {
+      return hasUpgrade("acid-spores") && hasUpgrade("fireball");
+    },
+  },
+  electricMineNetwork: {
+    id: "electricMineNetwork",
+    tier: "normal",
+    name: "감전 지뢰망",
+    hiddenName: "???",
+    conditionText: "전기 지뢰 + 번개 연쇄",
+    description: "지뢰 폭발 시 주변 적에게 번개가 연쇄됩니다.",
+    condition() {
+      return hasUpgrade("electric-mine") && hasUpgrade("chain-lightning");
+    },
+  },
+  laserPierce: {
+    id: "laserPierce",
+    tier: "normal",
+    name: "레이저 관통",
+    hiddenName: "???",
+    conditionText: "레이저 빔 + 관통탄",
+    description: "레이저가 적을 관통하고 맞은 적 수에 따라 피해가 증가합니다.",
+    condition() {
+      return hasUpgrade("laser-beam") && hasUpgrade("piercing-shot");
+    },
+  },
+  gravityBomb: {
+    id: "gravityBomb",
+    tier: "normal",
+    name: "중력 폭탄",
+    hiddenName: "???",
+    conditionText: "중력탄 + 폭탄 강화",
+    description: "중력탄 폭발 지점에 추가 폭탄 폭발이 발생합니다.",
+    condition() {
+      return hasUpgrade("gravity-shot") && weapons?.bomb?.unlocked;
+    },
+  },
+  lavaExplosion: {
+    id: "lavaExplosion",
+    tier: "normal",
+    name: "용암 폭발",
+    hiddenName: "???",
+    conditionText: "용암 균열 + 화염 폭발",
+    description: "화염 폭발이 일어날 때 용암 균열이 함께 생성됩니다.",
+    condition() {
+      return hasUpgrade("lava-fissure") && hasUpgrade("flame-burst");
+    },
+  },
+  toxicVampirism: {
+    id: "toxicVampirism",
+    tier: "normal",
+    name: "독성 흡혈",
+    hiddenName: "???",
+    conditionText: "독 칼날 + 흡혈",
+    description: "독 피해로 적을 처치하면 회복 확률과 회복량이 증가합니다.",
+    condition() {
+      return hasUpgrade("poison-blade") && hasUpgrade("vampire");
+    },
+  },
+  frozenMine: {
+    id: "frozenMine",
+    tier: "normal",
+    name: "냉동 지뢰",
+    hiddenName: "???",
+    conditionText: "얼음 창 + 전기 지뢰",
+    description: "지뢰 폭발 시 일반 적은 짧게 빙결되고 보스는 강하게 둔화됩니다.",
+    condition() {
+      return hasUpgrade("ice-spear") && hasUpgrade("electric-mine");
+    },
+  },
+  voidLightning: {
+    id: "voidLightning",
+    tier: "normal",
+    name: "공허 번개",
+    hiddenName: "???",
+    conditionText: "공허 균열 + 번개 연쇄",
+    description: "공허 균열 안의 적들에게 번개가 튕깁니다.",
+    condition() {
+      return hasUpgrade("void-rift") && hasUpgrade("chain-lightning");
+    },
+  },
+  meteorFissure: {
+    id: "meteorFissure",
+    tier: "normal",
+    name: "운석 균열",
+    hiddenName: "???",
+    conditionText: "공허 균열 + 메테오",
+    description: "공허 균열이 종료될 때 중심에 작은 메테오가 낙하합니다.",
+    condition() {
+      return hasUpgrade("void-rift") && hasUpgrade("meteor");
+    },
+  },
+  acidLaser: {
+    id: "acidLaser",
+    tier: "normal",
+    name: "산성 레이저",
+    hiddenName: "???",
+    conditionText: "산성 포자 + 레이저 빔",
+    description: "레이저가 지나간 자리에 산성 흔적이 남습니다.",
+    condition() {
+      return hasUpgrade("acid-spores") && hasUpgrade("laser-beam");
+    },
+  },
+  toxicVolcanoCloud: {
+    id: "toxicVolcanoCloud",
+    tier: "ultimate",
+    name: "맹독 화산운",
+    hiddenName: "궁극 ???",
+    conditionText: "산성 폭연 + 독성 흡혈",
+    description: "산성 폭연이 독성 화염 구름으로 강화되고 구름 안 처치 시 작은 독성 폭발이 발생합니다.",
+    condition() {
+      return isSynergyActive("acidPyro") && isSynergyActive("toxicVampirism");
+    },
+  },
+  plasmaCuttingField: {
+    id: "plasmaCuttingField",
+    tier: "ultimate",
+    name: "플라즈마 절단장",
+    hiddenName: "궁극 ???",
+    conditionText: "감전 지뢰망 + 레이저 관통",
+    description: "레이저 경로와 지뢰 폭발 위치에 플라즈마 전기 피해가 연쇄적으로 퍼집니다.",
+    condition() {
+      return isSynergyActive("electricMineNetwork") && isSynergyActive("laserPierce");
+    },
+  },
+  cataclysmSingularity: {
+    id: "cataclysmSingularity",
+    tier: "ultimate",
+    name: "대재앙 특이점",
+    hiddenName: "궁극 ???",
+    conditionText: "중력 폭탄 + 운석 균열",
+    description: "적을 끌어모은 뒤 폭탄 폭발, 운석 낙하, 충격파가 순서대로 발생합니다.",
+    condition() {
+      return isSynergyActive("gravityBomb") && isSynergyActive("meteorFissure");
+    },
+  },
+  thermalShatterSanctuary: {
+    id: "thermalShatterSanctuary",
+    tier: "ultimate",
+    name: "열파쇄 성역",
+    hiddenName: "궁극 ???",
+    conditionText: "빙결 오라 + 용암 폭발",
+    description: "냉기 영역 안의 적이 화염/용암 피해를 받으면 열파쇄 폭발이 발생합니다.",
+    condition() {
+      return isSynergyActive("frostAura") && isSynergyActive("lavaExplosion");
     },
   },
 };
@@ -531,6 +674,8 @@ let expOrbs;
 let supplyBoxes;
 let flameZones;
 let meteors;
+let specialProjectiles;
+let electricMines;
 let clones;
 let floatingTexts;
 let effects;
@@ -546,26 +691,12 @@ let activePauseTab = "summary";
 
 const upgrades = [
   {
-    id: "weapon-bullet",
-    name: "자동 탄환 강화",
-    rarity: "common",
-    type: "무기 강화",
-    description: "가장 가까운 적에게 발사되는 기본 무기의 레벨을 올립니다.",
-    effectText: "피해 증가, 공격 속도 증가, 3레벨마다 관통 +1",
-    isAvailable() {
-      return weapons.bullet.level < weapons.bullet.maxLevel;
-    },
-    apply() {
-      upgradeWeapon("bullet");
-    },
-  },
-  {
     id: "weapon-bomb",
     name: "폭탄 강화",
     rarity: "rare",
     type: "무기 강화",
-    description: "가까운 적 위치에 폭탄을 던지는 무기의 레벨을 올립니다.",
-    effectText: "처음 선택하면 폭탄 해금, 이후 범위/피해/쿨타임/개수 강화",
+    description: "폭탄 무기를 해금/강화하고 총알 적중 시 작은 폭발 효과를 추가합니다.",
+    effectText: "폭탄 강화 + 총알 적중 시 작은 폭발",
     isAvailable() {
       return weapons.bomb.level < weapons.bomb.maxLevel;
     },
@@ -629,18 +760,111 @@ const upgrades = [
     },
   },
   {
-    id: "bomb-pocket",
-    name: "폭탄 주머니",
+    id: "acid-spores",
+    name: "산성 포자",
     rarity: "rare",
     type: "증강",
-    maxStacks: 2,
-    description: "폭탄 무기가 해금된 뒤 폭탄 시너지를 강화합니다.",
-    effectText: "파편 폭탄 시너지의 파편 수 증가",
-    isAvailable() {
-      return weapons.bomb.unlocked;
-    },
+    maxStacks: 1,
+    description: "일정 시간마다 가장 가까운 적 근처에 산성 웅덩이를 만듭니다.",
+    effectText: "산성 웅덩이 지속 피해",
     apply() {
-      gameState.bombPocket.stacks = Math.min(2, (gameState.upgradeCounts["bomb-pocket"] ?? 0) + 1);
+      gameState.specialAbilities.acidSpore.enabled = true;
+    },
+  },
+  {
+    id: "fireball",
+    name: "화염구",
+    rarity: "rare",
+    type: "증강",
+    maxStacks: 1,
+    description: "일정 시간마다 가까운 적에게 폭발하는 화염구를 발사합니다.",
+    effectText: "화염구 투사체 + 작은 폭발",
+    apply() {
+      gameState.specialAbilities.fireball.enabled = true;
+    },
+  },
+  {
+    id: "electric-mine",
+    name: "전기 지뢰",
+    rarity: "rare",
+    type: "증강",
+    maxStacks: 1,
+    description: "일정 시간마다 적 근처에 전기 지뢰를 설치합니다.",
+    effectText: "지뢰 폭발 피해",
+    apply() {
+      gameState.specialAbilities.electricMine.enabled = true;
+    },
+  },
+  {
+    id: "laser-beam",
+    name: "레이저 빔",
+    rarity: "epic",
+    type: "증강",
+    maxStacks: 1,
+    description: "일정 시간마다 가장 가까운 적 방향으로 레이저를 발사합니다.",
+    effectText: "직선 레이저 피해",
+    apply() {
+      gameState.specialAbilities.laserBeam.enabled = true;
+    },
+  },
+  {
+    id: "gravity-shot",
+    name: "중력탄",
+    rarity: "epic",
+    type: "증강",
+    maxStacks: 1,
+    description: "적을 끌어당기는 중력탄을 발사합니다.",
+    effectText: "중력장 + 폭발 피해",
+    apply() {
+      gameState.specialAbilities.gravityShot.enabled = true;
+    },
+  },
+  {
+    id: "lava-fissure",
+    name: "용암 균열",
+    rarity: "epic",
+    type: "증강",
+    maxStacks: 1,
+    description: "일정 시간마다 용암 균열을 만들어 지속 피해를 줍니다.",
+    effectText: "용암 장판 지속 피해",
+    apply() {
+      gameState.specialAbilities.lavaFissure.enabled = true;
+    },
+  },
+  {
+    id: "poison-blade",
+    name: "독 칼날",
+    rarity: "rare",
+    type: "증강",
+    maxStacks: 1,
+    description: "가까운 적에게 독 칼날을 날려 독 피해를 남깁니다.",
+    effectText: "독 투사체 + 독 지속 피해",
+    apply() {
+      gameState.specialAbilities.poisonBlade.enabled = true;
+    },
+  },
+  {
+    id: "ice-spear",
+    name: "얼음 창",
+    rarity: "rare",
+    type: "증강",
+    maxStacks: 1,
+    description: "가까운 적에게 얼음 창을 던져 둔화와 짧은 빙결을 겁니다.",
+    effectText: "얼음 투사체 + 빙결",
+    apply() {
+      gameState.specialAbilities.iceSpear.enabled = true;
+    },
+  },
+  {
+    id: "void-rift",
+    name: "공허 균열",
+    rarity: "epic",
+    type: "증강",
+    maxStacks: 1,
+    description: "적을 끌어당기는 공허 균열을 생성합니다.",
+    effectText: "공허 장판 + 약한 끌어당김",
+    apply() {
+      gameState.specialAbilities.voidRift.enabled = true;
     },
   },
   {
@@ -793,18 +1017,6 @@ const upgrades = [
       weapons.bullet.shots = Math.max(weapons.bullet.shots, 2);
       weapons.bullet.spread = Math.max(weapons.bullet.spread, 0.18);
       weapons.bullet.damageMultiplier *= 0.9;
-    },
-  },
-  {
-    id: "explosive-bullets",
-    name: "폭발탄",
-    rarity: "epic",
-    type: "증강",
-    maxStacks: 1,
-    description: "총알이 적중할 때 주변에 작은 폭발 피해를 줍니다.",
-    effectText: "총알 적중 시 작은 범위 피해",
-    apply() {
-      weapons.bullet.explosion.enabled = true;
     },
   },
   {
@@ -1112,9 +1324,6 @@ function resetGame(startImmediately = hasStartedGame) {
     screenShakeStrength: 0,
     hitStopTimer: 0,
     hitStopCooldown: 0,
-    bombPocket: {
-      stacks: 0,
-    },
     synergy: {
       bloodCounterCooldown: 0,
       rapidPierceCooldown: 10,
@@ -1193,6 +1402,17 @@ function resetGame(startImmediately = hasStartedGame) {
       damageBonus: 0.15,
       bossDamageBonusMultiplier: 0.5,
     },
+    specialAbilities: {
+      acidSpore: { enabled: false, timer: 1.2, interval: 5.2, radius: 58, duration: 4.2, damagePerSecond: 0.8 },
+      fireball: { enabled: false, timer: 1.4, interval: 3.8, radius: 11, speed: 360, damage: 2.3, explosionRadius: 56 },
+      electricMine: { enabled: false, timer: 2.2, interval: 5.4, radius: 54, damage: 2.4, fuseTime: 1.15 },
+      laserBeam: { enabled: false, timer: 2.8, interval: 4.7, width: 18, range: 760, damage: 2.4 },
+      gravityShot: { enabled: false, timer: 2.5, interval: 5.8, radius: 12, speed: 320, damage: 1.5, pullRadius: 88 },
+      lavaFissure: { enabled: false, timer: 3.5, interval: 7.2, radius: 74, duration: 3.2, damagePerSecond: 1.2 },
+      poisonBlade: { enabled: false, timer: 1.6, interval: 2.6, radius: 9, speed: 430, damage: 1.4, poisonDuration: 2.6 },
+      iceSpear: { enabled: false, timer: 2.0, interval: 4.2, radius: 8, speed: 470, damage: 1.8, freezeDuration: 0.9 },
+      voidRift: { enabled: false, timer: 4.0, interval: 8.4, radius: 82, duration: 3.4, damagePerSecond: 0.75, pull: 44 },
+    },
   };
 
   weapons = {
@@ -1237,6 +1457,8 @@ function resetGame(startImmediately = hasStartedGame) {
   supplyBoxes = [];
   flameZones = [];
   meteors = [];
+  specialProjectiles = [];
+  electricMines = [];
   clones = [];
   floatingTexts = [];
   effects = [];
@@ -1965,21 +2187,24 @@ function renderActiveSynergies() {
     return;
   }
 
-  const activeSynergies = getActiveSynergyList();
+  const unlocked = permanentSave.unlockedSynergies ?? createDefaultSynergyUnlocks();
+  const synergies = Object.values(synergyDefinitions);
 
-  if (activeSynergies.length === 0) {
-    pauseActiveSynergies.innerHTML = `<p class="pause-empty">아직 활성화된 시너지가 없습니다.</p>`;
-    return;
-  }
+  pauseActiveSynergies.innerHTML = synergies
+    .map((synergy) => {
+      const isUnlocked = Boolean(unlocked[synergy.id]);
+      const isActive = isSynergyActive(synergy.id);
+      const isUltimate = synergy.tier === "ultimate";
 
-  pauseActiveSynergies.innerHTML = activeSynergies
-    .map((synergy) => `
-      <article class="pause-synergy-card">
-        <strong>${synergy.name}</strong>
-        <p>조건: ${synergy.conditionText}</p>
-        <p>효과: ${synergy.description}</p>
+      return `
+      <article class="pause-synergy-card ${isUnlocked ? "is-unlocked" : "is-locked"} ${isActive ? "is-active" : ""} ${isUltimate ? "is-ultimate" : ""}">
+        <strong>${isUnlocked ? synergy.name : synergy.hiddenName}</strong>
+        <p>조건: ${isUnlocked ? synergy.conditionText : "???"}</p>
+        <p>효과: ${isUnlocked ? synergy.description : "???"}</p>
+        ${isActive ? `<span class="pause-synergy-status">활성화 중</span>` : ""}
       </article>
-    `)
+    `;
+    })
     .join("");
 }
 
@@ -2040,9 +2265,17 @@ function getUpgradeCategory(upgrade) {
     "skilled-hands",
     "storm-hands",
     "piercing-shot",
+    "acid-spores",
+    "fireball",
+    "electric-mine",
+    "laser-beam",
+    "gravity-shot",
+    "lava-fissure",
+    "poison-blade",
+    "ice-spear",
+    "void-rift",
     "weak-spot",
     "double-shot",
-    "explosive-bullets",
     "chain-lightning",
     "guardian-aura",
     "blood-pact",
@@ -2056,7 +2289,6 @@ function getUpgradeCategory(upgrade) {
 
 function getOwnedUpgradeAmountLabel(upgrade, stackCount) {
   if (upgrade.type === "무기 강화") {
-    if (upgrade.id === "weapon-bullet") return `Lv.${weapons?.bullet?.level ?? Math.max(1, stackCount + 1)}`;
     if (upgrade.id === "weapon-bomb") return `Lv.${weapons?.bomb?.level ?? Math.max(1, stackCount)}`;
     return `Lv.${Math.max(1, stackCount)}`;
   }
@@ -2245,6 +2477,13 @@ function playSynergyUnlockSound() {
   playTone(1040, 0.13, "sine", 0.18, 0.18, 1320);
 }
 
+function playUltimateSynergyUnlockSound() {
+  if (!canPlaySound("ultimate-synergy", 0.8)) return;
+  playTone(196, 0.22, "sawtooth", 0.2, 0, 392);
+  playTone(392, 0.18, "triangle", 0.22, 0.1, 784);
+  playTone(784, 0.22, "sine", 0.2, 0.24, 1176);
+}
+
 function playSynergyActivateSound() {
   if (!canPlaySound("synergy-activate", 0.2)) return;
   playTone(640, 0.07, "sine", 0.16, 0, 920);
@@ -2335,6 +2574,8 @@ function upgradeWeapon(weaponId) {
     const wasUnlocked = weapons.bomb.unlocked;
 
     unlockBombWeapon();
+    weapons.bullet.explosion.enabled = true;
+    weapons.bullet.explosion.radius = Math.max(weapons.bullet.explosion.radius, 54 + weapons.bomb.level * 3);
 
     const bomb = weapons.bomb;
 
@@ -2345,6 +2586,8 @@ function upgradeWeapon(weaponId) {
     bomb.damage *= 1.16;
     bomb.radius += 7;
     bomb.cooldown = Math.max(4.2, bomb.cooldown * 0.9);
+    weapons.bullet.explosion.radius += 3;
+    weapons.bullet.explosion.damageRatio = Math.min(0.65, weapons.bullet.explosion.damageRatio + 0.025);
 
     if (bomb.level % 3 === 0) {
       bomb.count += 1;
@@ -2795,11 +3038,78 @@ function createFlameZone(x, y, options = {}) {
     damagePerSecond: options.damagePerSecond ?? gameState.flameBurst.damagePerSecond,
     bossDamageMultiplier: options.bossDamageMultiplier ?? 1,
     source: options.source ?? "화염 폭발",
+    kind: options.kind ?? "fire",
+    color: options.color ?? "rgba(255, 112, 67, 0.22)",
+    pull: options.pull ?? 0,
+    slow: options.slow ?? 0,
+    pulseTimer: options.pulseTimer ?? 0,
+    onExpireMeteor: Boolean(options.onExpireMeteor),
+    toxicExplosion: Boolean(options.toxicExplosion),
   });
 
   if (flameZones.length > 24) {
     flameZones.splice(0, flameZones.length - 24);
   }
+}
+
+function createAreaEffect(x, y, options = {}) {
+  createFlameZone(x, y, options);
+}
+
+function spawnSpecialProjectile(type, x, y, target, options = {}) {
+  if (!target || specialProjectiles.length >= MAX_SPECIAL_PROJECTILES) {
+    return;
+  }
+
+  const angle = Math.atan2(target.y - y, target.x - x);
+
+  specialProjectiles.push({
+    type,
+    x,
+    y,
+    vx: Math.cos(angle) * options.speed,
+    vy: Math.sin(angle) * options.speed,
+    radius: options.radius,
+    damage: options.damage,
+    age: 0,
+    lifetime: options.lifetime ?? 3,
+    color: options.color,
+    source: options.source,
+    hitTargetKeys: new Set(),
+    ...options,
+  });
+}
+
+function spawnMeteorAt(x, y, options = {}) {
+  meteors.push({
+    x,
+    y,
+    radius: options.radius ?? Math.max(58, gameState.meteor.radius * 0.72),
+    damage: options.damage ?? Math.max(3.2, gameState.meteor.damage * 0.62),
+    source: options.source ?? "운석 균열",
+    color: options.color ?? "rgba(255, 126, 74, 0.52)",
+    age: 0,
+    warningTime: options.warningTime ?? 0.65,
+    hasHit: false,
+  });
+}
+
+function addElectricMine(x, y, options = {}) {
+  if (electricMines.length >= MAX_ELECTRIC_MINES) {
+    electricMines.splice(0, electricMines.length - MAX_ELECTRIC_MINES + 1);
+  }
+
+  electricMines.push({
+    x,
+    y,
+    age: 0,
+    radius: options.radius ?? gameState.specialAbilities.electricMine.radius,
+    damage: options.damage ?? gameState.specialAbilities.electricMine.damage,
+    fuseTime: options.fuseTime ?? gameState.specialAbilities.electricMine.fuseTime,
+    source: options.source ?? "전기 지뢰",
+    color: options.color ?? "rgba(139, 233, 255, 0.42)",
+    exploded: false,
+  });
 }
 
 function addEffect(effect) {
@@ -2984,9 +3294,7 @@ function explodeAt(x, y, radius, damage, color = "rgba(255, 212, 71, 0.5)", sour
   playExplosionSound();
   const hitCount = damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier, 8);
 
-  if (source !== "파편 폭탄") {
-    addScreenShake(source === "메테오" ? 7 : 4, source === "메테오" ? 0.12 : 0.08);
-  }
+  addScreenShake(source === "메테오" ? 7 : 4, source === "메테오" ? 0.12 : 0.08);
 
   if (hitCount >= 3 || source === "메테오") {
     triggerHitStop(source === "메테오" ? 0.05 : 0.035);
@@ -3027,6 +3335,75 @@ function chainLightningFrom(x, y, damage, extraTargets = 0, bossDamageMultiplier
   if (lightningLines.length > 48) {
     lightningLines.splice(0, lightningLines.length - 48);
   }
+}
+
+function getPointLineDistance(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lengthSq = dx * dx + dy * dy;
+
+  if (lengthSq === 0) {
+    return getDistance(px, py, x1, y1);
+  }
+
+  const t = clamp(((px - x1) * dx + (py - y1) * dy) / lengthSq, 0, 1);
+  const closestX = x1 + dx * t;
+  const closestY = y1 + dy * t;
+
+  return getDistance(px, py, closestX, closestY);
+}
+
+function fireLaserBeam() {
+  const ability = gameState.specialAbilities.laserBeam;
+  const target = findNearestTargetFrom(player.x, player.y);
+
+  if (!target) {
+    return;
+  }
+
+  const angle = Math.atan2(target.y - player.y, target.x - player.x);
+  const endX = player.x + Math.cos(angle) * ability.range;
+  const endY = player.y + Math.sin(angle) * ability.range;
+  let targets = getAllTargets().filter((candidate) => {
+    const distance = getPointLineDistance(candidate.x, candidate.y, player.x, player.y, endX, endY);
+    return distance < ability.width + candidate.radius;
+  });
+  targets.sort((left, right) => getDistance(player.x, player.y, left.x, left.y) - getDistance(player.x, player.y, right.x, right.y));
+
+  if (!isSynergyActive("laserPierce")) {
+    targets = targets.slice(0, 1);
+  }
+
+  const pierceBonus = isSynergyActive("laserPierce") ? Math.min(0.8, targets.length * 0.08) : 0;
+  const damage = ability.damage * getAttackMultiplier() * (1 + pierceBonus);
+
+  for (const candidate of targets) {
+    damageTarget(candidate, damage, 1, isSynergyActive("laserPierce") ? "레이저 관통" : "레이저 빔");
+  }
+
+  if (isSynergyActive("acidLaser")) {
+    for (let index = 1; index <= 3; index++) {
+      createAreaEffect(player.x + Math.cos(angle) * ability.range * index / 4, player.y + Math.sin(angle) * ability.range * index / 4, {
+        kind: "acid",
+        radius: 34,
+        duration: 1.8,
+        damagePerSecond: 0.45 * getAttackMultiplier(),
+        bossDamageMultiplier: 0.45,
+        source: "산성 레이저",
+        color: "rgba(130, 255, 108, 0.18)",
+      });
+    }
+  }
+
+  if (isSynergyActive("plasmaCuttingField")) {
+    for (const candidate of targets.slice(0, 5)) {
+      chainLightningFrom(candidate.x, candidate.y, damage * 0.35, 2, 0.35);
+    }
+    addScreenShake(5, 0.1);
+  }
+
+  lightningLines.push({ x1: player.x, y1: player.y, x2: endX, y2: endY, age: 0, duration: 0.22 });
+  if (lightningLines.length > 48) lightningLines.splice(0, lightningLines.length - 48);
 }
 
 // ===== 업데이트/충돌 =====
@@ -3163,6 +3540,161 @@ function updateTimedEffects(deltaTime) {
   }
 }
 
+function updateSpecialAbilities(deltaTime) {
+  const abilities = gameState.specialAbilities;
+  const target = findNearestTargetFrom(player.x, player.y);
+
+  if (abilities.acidSpore.enabled) {
+    abilities.acidSpore.timer -= deltaTime;
+    if (abilities.acidSpore.timer <= 0 && target) {
+      createAreaEffect(target.x, target.y, {
+        kind: "acid",
+        radius: abilities.acidSpore.radius,
+        duration: abilities.acidSpore.duration,
+        damagePerSecond: abilities.acidSpore.damagePerSecond * getAttackMultiplier(),
+        bossDamageMultiplier: 0.55,
+        source: "산성 포자",
+        color: "rgba(130, 255, 108, 0.2)",
+      });
+      abilities.acidSpore.timer = abilities.acidSpore.interval;
+    }
+  }
+
+  if (abilities.fireball.enabled) {
+    abilities.fireball.timer -= deltaTime;
+    if (abilities.fireball.timer <= 0 && target) {
+      spawnSpecialProjectile("fireball", player.x, player.y, target, {
+        radius: abilities.fireball.radius,
+        speed: abilities.fireball.speed,
+        damage: abilities.fireball.damage * getAttackMultiplier(),
+        explosionRadius: abilities.fireball.explosionRadius,
+        color: "#ff7043",
+        source: "화염구",
+      });
+      abilities.fireball.timer = abilities.fireball.interval;
+    }
+  }
+
+  if (abilities.electricMine.enabled) {
+    abilities.electricMine.timer -= deltaTime;
+    if (abilities.electricMine.timer <= 0 && target) {
+      addElectricMine(target.x + (Math.random() - 0.5) * 42, target.y + (Math.random() - 0.5) * 42);
+      abilities.electricMine.timer = abilities.electricMine.interval;
+    }
+  }
+
+  if (abilities.laserBeam.enabled) {
+    abilities.laserBeam.timer -= deltaTime;
+    if (abilities.laserBeam.timer <= 0) {
+      fireLaserBeam();
+      abilities.laserBeam.timer = abilities.laserBeam.interval;
+    }
+  }
+
+  if (abilities.gravityShot.enabled) {
+    abilities.gravityShot.timer -= deltaTime;
+    if (abilities.gravityShot.timer <= 0 && target) {
+      spawnSpecialProjectile("gravity", player.x, player.y, target, {
+        radius: abilities.gravityShot.radius,
+        speed: abilities.gravityShot.speed,
+        damage: abilities.gravityShot.damage * getAttackMultiplier(),
+        pullRadius: abilities.gravityShot.pullRadius,
+        color: "#b46cff",
+        source: "중력탄",
+      });
+      abilities.gravityShot.timer = abilities.gravityShot.interval;
+    }
+  }
+
+  if (abilities.lavaFissure.enabled) {
+    abilities.lavaFissure.timer -= deltaTime;
+    if (abilities.lavaFissure.timer <= 0 && target) {
+      createLavaFissure(target.x, target.y, 1);
+      abilities.lavaFissure.timer = abilities.lavaFissure.interval;
+    }
+  }
+
+  if (abilities.poisonBlade.enabled) {
+    abilities.poisonBlade.timer -= deltaTime;
+    if (abilities.poisonBlade.timer <= 0 && target) {
+      spawnSpecialProjectile("poison", player.x, player.y, target, {
+        radius: abilities.poisonBlade.radius,
+        speed: abilities.poisonBlade.speed,
+        damage: abilities.poisonBlade.damage * getAttackMultiplier(),
+        poisonDuration: abilities.poisonBlade.poisonDuration,
+        color: "#64f7b4",
+        source: "독 칼날",
+      });
+      abilities.poisonBlade.timer = abilities.poisonBlade.interval;
+    }
+  }
+
+  if (abilities.iceSpear.enabled) {
+    abilities.iceSpear.timer -= deltaTime;
+    if (abilities.iceSpear.timer <= 0 && target) {
+      spawnSpecialProjectile("ice", player.x, player.y, target, {
+        radius: abilities.iceSpear.radius,
+        speed: abilities.iceSpear.speed,
+        damage: abilities.iceSpear.damage * getAttackMultiplier(),
+        freezeDuration: abilities.iceSpear.freezeDuration,
+        color: "#8be9ff",
+        source: "얼음 창",
+      });
+      abilities.iceSpear.timer = abilities.iceSpear.interval;
+    }
+  }
+
+  if (abilities.voidRift.enabled) {
+    abilities.voidRift.timer -= deltaTime;
+    if (abilities.voidRift.timer <= 0 && target) {
+      createVoidRift(target.x, target.y, 1);
+      abilities.voidRift.timer = abilities.voidRift.interval;
+    }
+  }
+}
+
+function createLavaFissure(x, y, scale = 1) {
+  const ability = gameState.specialAbilities.lavaFissure;
+  createAreaEffect(x, y, {
+    kind: "lava",
+    radius: ability.radius * scale,
+    duration: ability.duration,
+    damagePerSecond: ability.damagePerSecond * getAttackMultiplier() * scale,
+    bossDamageMultiplier: 0.55,
+    source: "용암 균열",
+    color: "rgba(255, 94, 64, 0.24)",
+  });
+}
+
+function createVoidRift(x, y, scale = 1, options = {}) {
+  const ability = gameState.specialAbilities.voidRift;
+  createAreaEffect(x, y, {
+    kind: "void",
+    radius: (options.radius ?? ability.radius) * scale,
+    duration: options.duration ?? ability.duration,
+    damagePerSecond: (options.damagePerSecond ?? ability.damagePerSecond) * getAttackMultiplier() * scale,
+    bossDamageMultiplier: 0.45,
+    source: options.source ?? "공허 균열",
+    color: options.color ?? "rgba(180, 108, 255, 0.18)",
+    pull: (options.pull ?? ability.pull) * scale,
+    pulseTimer: 0.6,
+    onExpireMeteor: Boolean(options.onExpireMeteor ?? isSynergyActive("meteorFissure")),
+  });
+}
+
+function createToxicCloud(x, y, scale = 1) {
+  createAreaEffect(x, y, {
+    kind: "toxic",
+    radius: 78 * scale,
+    duration: 3.6,
+    damagePerSecond: 1.45 * getAttackMultiplier() * scale,
+    bossDamageMultiplier: 0.55,
+    source: isSynergyActive("toxicVolcanoCloud") ? "맹독 화산운" : "산성 폭연",
+    color: isSynergyActive("toxicVolcanoCloud") ? "rgba(170, 255, 72, 0.24)" : "rgba(140, 255, 96, 0.2)",
+    toxicExplosion: isSynergyActive("toxicVolcanoCloud"),
+  });
+}
+
 function updateSynergies(deltaTime) {
   const state = gameState.synergy;
 
@@ -3227,10 +3759,13 @@ function updateBosses(deltaTime) {
         : 1;
 
     boss.spawnAge = (boss.spawnAge ?? 0) + deltaTime;
-    boss.x += Math.cos(angle) * boss.speed * frostSlow * timeSlowMultiplier * deltaTime;
-    boss.y += Math.sin(angle) * boss.speed * frostSlow * timeSlowMultiplier * deltaTime;
+    boss.freezeTimer = Math.max(0, (boss.freezeTimer ?? 0) - deltaTime);
+    const freezeSlow = boss.freezeTimer > 0 ? 0.55 : 1;
+    boss.x += Math.cos(angle) * boss.speed * frostSlow * timeSlowMultiplier * freezeSlow * deltaTime;
+    boss.y += Math.sin(angle) * boss.speed * frostSlow * timeSlowMultiplier * freezeSlow * deltaTime;
     boss.touchCooldown = Math.max(0, boss.touchCooldown - deltaTime);
     boss.hitFlashTimer = Math.max(0, (boss.hitFlashTimer ?? 0) - deltaTime);
+    boss.thermalShatterCooldown = Math.max(0, (boss.thermalShatterCooldown ?? 0) - deltaTime);
 
     if (boss.bossType === "mid") {
       boss.summonTimer -= deltaTime;
@@ -3335,6 +3870,170 @@ function createFinalBossShockwave(boss) {
   }
 }
 
+function updateSpecialProjectiles(deltaTime) {
+  for (let index = specialProjectiles.length - 1; index >= 0; index--) {
+    const projectile = specialProjectiles[index];
+    projectile.age += deltaTime;
+    projectile.x += projectile.vx * deltaTime;
+    projectile.y += projectile.vy * deltaTime;
+
+    if (projectile.type === "fireball") {
+      const acidZone = flameZones.find((zone) => zone.kind === "acid" && getDistance(projectile.x, projectile.y, zone.x, zone.y) < zone.radius + projectile.radius);
+      if (acidZone && isSynergyActive("acidPyro")) {
+        triggerAcidFireExplosion(projectile.x, projectile.y);
+        specialProjectiles.splice(index, 1);
+        continue;
+      }
+    }
+
+    let hitTarget = null;
+    for (const target of getAllTargets()) {
+      if (getDistance(projectile.x, projectile.y, target.x, target.y) < projectile.radius + target.radius) {
+        hitTarget = target;
+        break;
+      }
+    }
+
+    if (hitTarget) {
+      handleSpecialProjectileHit(projectile, hitTarget);
+      specialProjectiles.splice(index, 1);
+      continue;
+    }
+
+    if (
+      projectile.age >= projectile.lifetime ||
+      projectile.x < -90 ||
+      projectile.x > window.innerWidth + 90 ||
+      projectile.y < -90 ||
+      projectile.y > window.innerHeight + 90
+    ) {
+      specialProjectiles.splice(index, 1);
+    }
+  }
+}
+
+function handleSpecialProjectileHit(projectile, target) {
+  if (projectile.type === "fireball") {
+    damageTarget(target, projectile.damage, 2, "화염구");
+    explodeAt(projectile.x, projectile.y, projectile.explosionRadius, projectile.damage * 0.65, "rgba(255, 112, 67, 0.42)", "화염구", 0.45);
+    return;
+  }
+
+  if (projectile.type === "gravity") {
+    damageTarget(target, projectile.damage, 1, "중력탄");
+    createAreaEffect(projectile.x, projectile.y, {
+      kind: "gravity",
+      radius: projectile.pullRadius,
+      duration: isSynergyActive("cataclysmSingularity") ? 2.2 : 1.5,
+      damagePerSecond: 0.45 * getAttackMultiplier(),
+      bossDamageMultiplier: 0.35,
+      source: "중력탄",
+      color: "rgba(180, 108, 255, 0.18)",
+      pull: isSynergyActive("cataclysmSingularity") ? 95 : 58,
+    });
+
+    if (isSynergyActive("gravityBomb")) {
+      explodeAt(projectile.x, projectile.y, 72, 3.2 * getAttackMultiplier(), "rgba(255, 212, 71, 0.42)", "중력 폭탄", 0.45);
+    }
+
+    if (isSynergyActive("cataclysmSingularity")) {
+      triggerCataclysmSingularity(projectile.x, projectile.y);
+    }
+    return;
+  }
+
+  if (projectile.type === "poison") {
+    damageTarget(target, projectile.damage, 1, "독 칼날");
+    createAreaEffect(target.x, target.y, {
+      kind: "poison",
+      radius: 34,
+      duration: projectile.poisonDuration,
+      damagePerSecond: 0.55 * getAttackMultiplier(),
+      bossDamageMultiplier: 0.45,
+      source: "독 칼날",
+      color: "rgba(100, 247, 180, 0.18)",
+    });
+    return;
+  }
+
+  if (projectile.type === "ice") {
+    damageTarget(target, projectile.damage, 1, "얼음 창");
+    target.freezeTimer = Math.max(target.freezeTimer ?? 0, target.kind === "boss" ? projectile.freezeDuration * 0.35 : projectile.freezeDuration);
+    addEffect({ type: "ring", x: target.x, y: target.y, radius: target.radius + 18, duration: 0.24, color: "rgba(139, 233, 255, 0.58)" });
+  }
+}
+
+function updateElectricMines(deltaTime) {
+  for (let index = electricMines.length - 1; index >= 0; index--) {
+    const mine = electricMines[index];
+    mine.age += deltaTime;
+
+    if (mine.age >= mine.fuseTime && !mine.exploded) {
+      mine.exploded = true;
+      explodeAt(mine.x, mine.y, mine.radius, mine.damage * getAttackMultiplier(), mine.color, mine.source, 0.45);
+
+      if (isSynergyActive("electricMineNetwork")) {
+        chainLightningFrom(mine.x, mine.y, mine.damage * 0.75 * getAttackMultiplier(), isSynergyActive("plasmaCuttingField") ? 4 : 2, 0.4);
+      }
+
+      if (isSynergyActive("frozenMine")) {
+        freezeTargetsInRadius(mine.x, mine.y, mine.radius + 20, 1.1);
+      }
+
+      if (isSynergyActive("plasmaCuttingField")) {
+        explodeAt(mine.x, mine.y, mine.radius + 24, mine.damage * 0.8 * getAttackMultiplier(), "rgba(139, 233, 255, 0.36)", "플라즈마 절단장", 0.35);
+      }
+    }
+
+    if (mine.age >= mine.fuseTime + 0.35) {
+      electricMines.splice(index, 1);
+    }
+  }
+}
+
+function triggerAcidFireExplosion(x, y) {
+  const ultimate = isSynergyActive("toxicVolcanoCloud");
+  explodeAt(x, y, ultimate ? 92 : 68, (ultimate ? 4.4 : 2.8) * getAttackMultiplier(), "rgba(150, 255, 86, 0.44)", ultimate ? "맹독 화산운" : "산성 폭연", 0.5);
+  createToxicCloud(x, y, ultimate ? 1.25 : 1);
+
+  if (ultimate) {
+    addScreenShake(8, 0.16);
+    addParticleBurst(x, y, { count: 12, color: "rgba(210, 255, 82, 0.95)", speed: 150, size: 3.2, duration: 0.62 });
+  }
+}
+
+function triggerCataclysmSingularity(x, y) {
+  addScreenShake(10, 0.18);
+  createVoidRift(x, y, 1.18, {
+    radius: 105,
+    duration: 2.4,
+    damagePerSecond: 1.2,
+    pull: 118,
+    source: "대재앙 특이점",
+    color: "rgba(180, 108, 255, 0.24)",
+    onExpireMeteor: true,
+  });
+  explodeAt(x, y, 96, 4.2 * getAttackMultiplier(), "rgba(255, 212, 71, 0.38)", "대재앙 특이점", 0.42);
+  spawnMeteorAt(x, y, {
+    radius: 82,
+    damage: 5.8 * getAttackMultiplier(),
+    source: "대재앙 특이점",
+    warningTime: 0.55,
+  });
+  createShockwave(x, y, 138, 2.2 * getAttackMultiplier(), 64, "rgba(180, 108, 255, 0.5)", "대재앙 특이점");
+}
+
+function freezeTargetsInRadius(x, y, radius, duration) {
+  for (const target of getAllTargets()) {
+    if (getDistance(x, y, target.x, target.y) < radius + target.radius) {
+      target.freezeTimer = Math.max(target.freezeTimer ?? 0, target.kind === "boss" ? duration * 0.35 : duration);
+      damageTarget(target, 0.45 * getAttackMultiplier(), 2, "냉동 지뢰", { showText: false });
+    }
+  }
+
+  addEffect({ type: "ring", x, y, radius, duration: 0.3, color: "rgba(139, 233, 255, 0.58)" });
+}
+
 function updateBullets(deltaTime) {
   for (const bullet of bullets) {
     bullet.x += bullet.vx * deltaTime;
@@ -3364,14 +4063,12 @@ function updateBombs(deltaTime) {
         bomb.y,
         bomb.radius,
         bomb.damage,
-        bomb.isFragment ? "rgba(255, 156, 74, 0.42)" : "rgba(255, 212, 71, 0.5)",
-        bomb.isFragment ? "파편 폭탄" : "폭탄",
-        bomb.isFragment ? 0.5 : 0.45,
+        "rgba(255, 212, 71, 0.5)",
+        "폭탄",
+        0.45,
       );
 
-      if (!bomb.isFragment) {
-        handleBombSynergyExplosion(bomb);
-      }
+      handleBombSynergyExplosion(bomb);
     }
   }
 
@@ -3386,57 +4083,77 @@ function handleBombSynergyExplosion(bomb) {
       damagePerSecond: bomb.damage * 0.15,
       bossDamageMultiplier: 0.5,
       source: "화염 폭탄",
-    });
-  }
-
-  if (isSynergyActive("shrapnelBomb")) {
-    spawnShrapnelBombs(bomb);
-  }
-}
-
-function spawnShrapnelBombs(bomb) {
-  if (bombs.length > 48) {
-    return;
-  }
-
-  const stacks = Math.max(1, gameState.bombPocket.stacks, gameState.upgradeCounts["bomb-pocket"] ?? 0);
-  const count = stacks >= 2 ? 5 : 4;
-  const spreadDistance = bomb.radius * 0.62;
-
-  for (let index = 0; index < count; index++) {
-    const angle = (TAU * index) / count + Math.random() * 0.28;
-
-    bombs.push({
-      x: bomb.x + Math.cos(angle) * spreadDistance,
-      y: bomb.y + Math.sin(angle) * spreadDistance,
-      radius: Math.max(24, bomb.radius * 0.42),
-      damage: bomb.damage * 0.3,
-      fuseTime: 0.18,
-      age: 0,
-      exploded: false,
-      isFragment: true,
+      kind: "fire",
+      color: "rgba(255, 112, 67, 0.22)",
     });
   }
 }
 
 function updateFlameZones(deltaTime) {
+  const expiredZones = [];
+
   for (const zone of flameZones) {
     zone.age += deltaTime;
+    zone.pulseTimer = Math.max(0, (zone.pulseTimer ?? 0) - deltaTime);
 
     for (const target of getAllTargets()) {
       const distance = getDistance(zone.x, zone.y, target.x, target.y);
 
       if (distance < zone.radius + target.radius) {
+        if (zone.pull > 0 && target.kind !== "boss") {
+          const angle = Math.atan2(zone.y - target.y, zone.x - target.x);
+          target.x += Math.cos(angle) * zone.pull * deltaTime;
+          target.y += Math.sin(angle) * zone.pull * deltaTime;
+        } else if (zone.pull > 0 && target.kind === "boss") {
+          const angle = Math.atan2(zone.y - target.y, zone.x - target.x);
+          target.x += Math.cos(angle) * zone.pull * 0.18 * deltaTime;
+          target.y += Math.sin(angle) * zone.pull * 0.18 * deltaTime;
+        }
+
+        if (zone.slow > 0) {
+          target.freezeTimer = Math.max(target.freezeTimer ?? 0, target.kind === "boss" ? zone.slow * 0.35 : zone.slow);
+        }
+
         const damage = zone.damagePerSecond * deltaTime * (target.kind === "boss" ? zone.bossDamageMultiplier : 1);
 
         damageTarget(target, damage, 0, zone.source, {
           showText: false,
         });
+
+        if (
+          isSynergyActive("thermalShatterSanctuary") &&
+          (zone.kind === "fire" || zone.kind === "lava") &&
+          gameState.coldAura.enabled &&
+          getDistance(player.x, player.y, target.x, target.y) < gameState.coldAura.radius + target.radius &&
+          (target.thermalShatterCooldown ?? 0) <= 0
+        ) {
+          target.thermalShatterCooldown = target.kind === "boss" ? 2.8 : 1.2;
+          explodeAt(target.x, target.y, target.kind === "boss" ? 42 : 58, 1.8 * getAttackMultiplier(), "rgba(139, 233, 255, 0.42)", "열파쇄 성역", 0.35);
+        }
       }
+    }
+
+    if (zone.kind === "void" && isSynergyActive("voidLightning") && zone.pulseTimer <= 0) {
+      chainLightningFrom(zone.x, zone.y, 0.85 * getAttackMultiplier(), 3, 0.35);
+      zone.pulseTimer = isSynergyActive("cataclysmSingularity") ? 0.38 : 0.65;
+    }
+
+    if (zone.age >= zone.duration) {
+      expiredZones.push(zone);
     }
   }
 
   flameZones = flameZones.filter((zone) => zone.age < zone.duration);
+
+  for (const zone of expiredZones) {
+    if (zone.onExpireMeteor) {
+      spawnMeteorAt(zone.x, zone.y, {
+        radius: zone.source === "대재앙 특이점" ? 76 : 58,
+        damage: (zone.source === "대재앙 특이점" ? 5.2 : 3.2) * getAttackMultiplier(),
+        source: zone.source === "대재앙 특이점" ? "대재앙 특이점" : "운석 균열",
+      });
+    }
+  }
 }
 
 function updateMeteors(deltaTime) {
@@ -3448,10 +4165,10 @@ function updateMeteors(deltaTime) {
       explodeAt(
         meteor.x,
         meteor.y,
-        gameState.meteor.radius,
-        gameState.meteor.damage,
-        "rgba(255, 126, 74, 0.52)",
-        "메테오",
+        meteor.radius ?? gameState.meteor.radius,
+        meteor.damage ?? gameState.meteor.damage,
+        meteor.color ?? "rgba(255, 126, 74, 0.52)",
+        meteor.source ?? "메테오",
       );
     }
   }
@@ -3510,6 +4227,7 @@ function updateEnemies(deltaTime) {
 
     enemy.freezeTimer = Math.max(0, (enemy.freezeTimer ?? 0) - deltaTime);
     enemy.frostCooldown = Math.max(0, (enemy.frostCooldown ?? 0) - deltaTime);
+    enemy.thermalShatterCooldown = Math.max(0, (enemy.thermalShatterCooldown ?? 0) - deltaTime);
 
     if (isSynergyActive("frostAura") && gameState.aura.enabled && distanceToPlayer < gameState.aura.radius + enemy.radius) {
       speedMultiplier *= 0.78;
@@ -3783,7 +4501,7 @@ function handleBulletTargetCollisions() {
             weapons.bullet.explosion.radius,
             bullet.damage * weapons.bullet.explosion.damageRatio,
             "rgba(255, 212, 71, 0.38)",
-            "폭발탄",
+            "폭탄 강화 폭발",
           );
         }
 
@@ -3805,17 +4523,6 @@ function handleBulletTargetCollisions() {
         bullet.pierceRemaining -= 1;
         shouldRemoveBullet = bullet.pierceRemaining < 0;
 
-        if (shouldRemoveBullet && isSynergyActive("rupturePierce")) {
-          explodeAt(
-            hitX,
-            hitY,
-            46,
-            bullet.damage * 0.45,
-            "rgba(255, 156, 74, 0.34)",
-            "파열 관통탄",
-            0.5,
-          );
-        }
         break;
       }
     }
@@ -3957,6 +4664,7 @@ function damageTarget(target, rawDamage, knockback, source, options = {}) {
   }
 
   if (target.hp <= 0) {
+    handleSynergyKillEffects(target, source);
     defeatTarget(target);
     return true;
   }
@@ -3966,6 +4674,18 @@ function damageTarget(target, rawDamage, knockback, source, options = {}) {
 
 function recordWeaponDamage(source, amount) {
   gameState.weaponDamage[source] = (gameState.weaponDamage[source] ?? 0) + amount;
+}
+
+function handleSynergyKillEffects(target, source) {
+  if (isSynergyActive("toxicVampirism") && /독|맹독/.test(source)) {
+    const healAmount = isSynergyActive("toxicVolcanoCloud") ? 3 : 2;
+    player.hp = Math.min(player.maxHp, player.hp + healAmount);
+    addFloatingText(`+${healAmount}`, player.x, player.y - player.radius - 26, "#64f7b4", 16, 0.8);
+  }
+
+  if (isSynergyActive("toxicVolcanoCloud") && /맹독 화산운/.test(source)) {
+    explodeAt(target.x, target.y, 42, 1.4 * getAttackMultiplier(), "rgba(170, 255, 72, 0.34)", "맹독 화산운", 0.35);
+  }
 }
 
 function defeatTarget(target) {
@@ -3990,6 +4710,10 @@ function defeatTarget(target) {
 
   if (gameState.flameBurst.enabled && Math.random() < gameState.flameBurst.chance) {
     createFlameZone(target.x, target.y);
+
+    if (isSynergyActive("lavaExplosion")) {
+      createLavaFissure(target.x, target.y, 0.82);
+    }
   }
 
   addEnemyDefeatParticles(target);
@@ -4176,10 +4900,6 @@ function initializeSynergyState(synergyId) {
     gameState.synergy.knowledgeCooldown = 0;
     gameState.synergy.knowledgeBuffTimer = 0;
   }
-
-  if (synergyId === "shrapnelBomb") {
-    gameState.bombPocket.stacks = Math.max(gameState.bombPocket.stacks, gameState.upgradeCounts["bomb-pocket"] ?? 0);
-  }
 }
 
 function checkSynergies() {
@@ -4187,7 +4907,10 @@ function checkSynergies() {
     return;
   }
 
-  for (const synergy of Object.values(synergyDefinitions)) {
+  const normalSynergies = Object.values(synergyDefinitions).filter((synergy) => synergy.tier !== "ultimate");
+  const ultimateSynergies = Object.values(synergyDefinitions).filter((synergy) => synergy.tier === "ultimate");
+
+  for (const synergy of [...normalSynergies, ...ultimateSynergies]) {
     if (isSynergyActive(synergy.id)) {
       continue;
     }
@@ -4256,21 +4979,33 @@ function openNextSynergyPopup() {
   }
 
   const synergy = gameState.pendingSynergyPopups.shift();
+  const isUltimate = synergy.tier === "ultimate";
 
+  if (synergyPopupKicker) synergyPopupKicker.textContent = isUltimate ? "궁극 시너지 각성!" : "히든 시너지 발견!";
   if (synergyPopupName) synergyPopupName.textContent = synergy.name;
   if (synergyPopupCondition) synergyPopupCondition.textContent = synergy.conditionText;
   if (synergyPopupDescription) synergyPopupDescription.textContent = synergy.description;
 
+  synergyPopupScreen.classList.toggle("is-ultimate", isUltimate);
   synergyPopupScreen.classList.remove("hidden");
   gameState.isSynergyPopupOpen = true;
   setUiBlocking(true);
   resetJoystick();
-  addScreenShake(5, 0.12);
-  playSynergyUnlockSound();
+
+  if (isUltimate) {
+    addScreenShake(10, 0.2);
+    addFloatingText("궁극 시너지 각성!", window.innerWidth / 2, 118, "#ffd447", 34, 1.3, { align: "center", vy: -12, weight: 900 });
+    addParticleBurst(player.x, player.y, { count: 18, color: "rgba(255, 212, 71, 0.96)", speed: 190, size: 4, duration: 0.75 });
+    playUltimateSynergyUnlockSound();
+  } else {
+    addScreenShake(5, 0.12);
+    playSynergyUnlockSound();
+  }
 }
 
 function closeSynergyPopup() {
   synergyPopupScreen?.classList.add("hidden");
+  synergyPopupScreen?.classList.remove("is-ultimate");
 
   if (gameState?.pendingSynergyPopups?.length) {
     openNextSynergyPopup();
@@ -4323,10 +5058,12 @@ function renderSynergyCollection() {
     }
 
     const isUnlocked = Boolean(unlocked[synergy.id]);
-    card.className = `synergy-card ${isUnlocked ? "is-unlocked" : "is-locked"}`;
+    const isUltimate = synergy.tier === "ultimate";
+    card.className = `synergy-card ${isUnlocked ? "is-unlocked" : "is-locked"} ${isUltimate ? "is-ultimate" : ""}`;
     card.innerHTML = isUnlocked
       ? `
         <strong>${synergy.name}</strong>
+        <p>${isUltimate ? "궁극 시너지" : "히든 시너지"}</p>
         <p>조건: ${synergy.conditionText}</p>
         <p>효과: ${synergy.description}</p>
       `
@@ -4467,9 +5204,12 @@ function updateGame(deltaTime) {
 
   updatePlayer(deltaTime);
   updateTimedEffects(deltaTime);
+  updateSpecialAbilities(deltaTime);
   updateSynergies(deltaTime);
   updateWeapons(deltaTime);
   updateBosses(deltaTime);
+  updateSpecialProjectiles(deltaTime);
+  updateElectricMines(deltaTime);
   updateBullets(deltaTime);
   updateBombs(deltaTime);
   updateFlameZones(deltaTime);
@@ -5084,7 +5824,7 @@ function drawFlameZones() {
 
     ctx.beginPath();
     ctx.arc(zone.x, zone.y, zone.radius, 0, TAU);
-    ctx.fillStyle = `rgba(255, 112, 67, ${0.22 * alpha})`;
+    ctx.fillStyle = zone.color?.replace(/[\d.]+\)$/u, `${0.24 * alpha})`) ?? `rgba(255, 112, 67, ${0.22 * alpha})`;
     ctx.fill();
   }
 }
@@ -5097,6 +5837,28 @@ function drawMeteors() {
     ctx.arc(meteor.x, meteor.y, meteor.radius * progress, 0, TAU);
     ctx.strokeStyle = meteor.hasHit ? "rgba(255, 212, 71, 0.86)" : "rgba(255, 94, 104, 0.7)";
     ctx.lineWidth = meteor.hasHit ? 8 : 3;
+    ctx.stroke();
+  }
+}
+
+function drawSpecialProjectiles() {
+  for (const projectile of specialProjectiles) {
+    drawCircle({ x: projectile.x, y: projectile.y, radius: projectile.radius }, projectile.color ?? "#ffffff", "#ffffff");
+  }
+}
+
+function drawElectricMines() {
+  for (const mine of electricMines) {
+    const pulse = 0.75 + Math.sin(mine.age * 10) * 0.25;
+
+    ctx.beginPath();
+    ctx.arc(mine.x, mine.y, 9 + pulse * 3, 0, TAU);
+    ctx.fillStyle = "rgba(139, 233, 255, 0.5)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(mine.x, mine.y, mine.radius * Math.min(1, mine.age / mine.fuseTime), 0, TAU);
+    ctx.strokeStyle = "rgba(139, 233, 255, 0.36)";
+    ctx.lineWidth = 2;
     ctx.stroke();
   }
 }
@@ -5157,8 +5919,10 @@ function drawGame() {
   drawPlayerAuras();
   drawFlameZones();
   drawMeteors();
+  drawElectricMines();
   drawSupplyBoxes();
   drawBombs();
+  drawSpecialProjectiles();
   drawEffects();
   drawLightning();
 
