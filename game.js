@@ -6,6 +6,17 @@ const startScreen = document.getElementById("startScreen");
 const startButton = document.getElementById("startButton");
 const soundStartButton = document.getElementById("soundStartButton");
 const soundHudButton = document.getElementById("soundHudButton");
+const pauseButton = document.getElementById("pauseButton");
+const pauseScreen = document.getElementById("pauseScreen");
+const resumeButton = document.getElementById("resumeButton");
+const pausePermanentButton = document.getElementById("pausePermanentButton");
+const pauseSynergyButton = document.getElementById("pauseSynergyButton");
+const pauseSoundButton = document.getElementById("pauseSoundButton");
+const pauseMainMenuButton = document.getElementById("pauseMainMenuButton");
+const difficultyNormalButton = document.getElementById("difficultyNormalButton");
+const difficultyHardButton = document.getElementById("difficultyHardButton");
+const difficultyHellButton = document.getElementById("difficultyHellButton");
+const difficultyMessage = document.getElementById("difficultyMessage");
 const hpValue = document.getElementById("hpValue");
 const levelValue = document.getElementById("levelValue");
 const expValue = document.getElementById("expValue");
@@ -17,9 +28,23 @@ const rerollButton = document.getElementById("rerollButton");
 const gameOverScreen = document.getElementById("gameOverScreen");
 const resultStats = document.getElementById("resultStats");
 const restartButton = document.getElementById("restartButton");
+const clearScreen = document.getElementById("clearScreen");
+const clearTitle = document.getElementById("clearTitle");
+const clearMessage = document.getElementById("clearMessage");
+const clearStats = document.getElementById("clearStats");
+const hellClearCodeBox = document.getElementById("hellClearCodeBox");
+const hellClearCodeValue = document.getElementById("hellClearCodeValue");
+const copyClearCodeButton = document.getElementById("copyClearCodeButton");
+const copyClearCodeMessage = document.getElementById("copyClearCodeMessage");
+const clearRestartButton = document.getElementById("clearRestartButton");
+const clearPermanentButton = document.getElementById("clearPermanentButton");
+const clearSynergyButton = document.getElementById("clearSynergyButton");
+const clearMainMenuButton = document.getElementById("clearMainMenuButton");
 const joystick = document.getElementById("joystick");
 const joystickKnob = document.getElementById("joystickKnob");
 const startSoulValue = document.getElementById("startSoulValue");
+const startSoulCtaValue = document.getElementById("startSoulCtaValue");
+const startPermanentBadge = document.getElementById("startPermanentBadge");
 const openPermanentButton = document.getElementById("openPermanentButton");
 const openPermanentGameOverButton = document.getElementById("openPermanentGameOverButton");
 const mainMenuButton = document.getElementById("mainMenuButton");
@@ -30,6 +55,9 @@ const permanentMessage = document.getElementById("permanentMessage");
 const closePermanentButton = document.getElementById("closePermanentButton");
 const newRunPermanentButton = document.getElementById("newRunPermanentButton");
 const resetSaveButton = document.getElementById("resetSaveButton");
+const permanentGuideScreen = document.getElementById("permanentGuideScreen");
+const guidePermanentButton = document.getElementById("guidePermanentButton");
+const guideLaterButton = document.getElementById("guideLaterButton");
 const openSynergyCollectionButton = document.getElementById("openSynergyCollectionButton");
 const synergyPopupScreen = document.getElementById("synergyPopupScreen");
 const synergyPopupName = document.getElementById("synergyPopupName");
@@ -48,6 +76,74 @@ const SOUND_KEY = "neon-survivor-sound-enabled";
 const SAVE_KEY = "survivorGameSave_v1";
 const joystickMaxDistance = 46;
 const SYNERGY_COLLECTION_SIZE = 20;
+// 배포 기본값은 false다. true로 바꾸면 10분 대신 30초에 메인보스가 나와 테스트가 쉬워진다.
+const DEBUG_FAST_FINAL_BOSS = false;
+const FINAL_BOSS_TIME = DEBUG_FAST_FINAL_BOSS ? 30 : 600;
+
+const difficultyConfigs = {
+  normal: {
+    label: "노멀",
+    enemyHpMultiplier: 1,
+    enemySpeedMultiplier: 1,
+    spawnRateMultiplier: 1,
+    maxEnemyMultiplier: 1,
+    bossHpMultiplier: 1,
+    bossDamageMultiplier: 1,
+    soulMultiplier: 1,
+    fastWeightMultiplier: 1,
+    tankWeightMultiplier: 1,
+    eliteWeightMultiplier: 1,
+    finalBossLabel: "메인보스",
+    finalBossColor: "#ffd447",
+    finalBossGlow: "rgba(255, 212, 71, 0.36)",
+  },
+  hard: {
+    label: "어려움",
+    enemyHpMultiplier: 1.25,
+    enemySpeedMultiplier: 1.1,
+    spawnRateMultiplier: 1.15,
+    maxEnemyMultiplier: 1.15,
+    bossHpMultiplier: 1.3,
+    bossDamageMultiplier: 1.1,
+    soulMultiplier: 1.2,
+    fastWeightMultiplier: 1.08,
+    tankWeightMultiplier: 1.16,
+    eliteWeightMultiplier: 1.18,
+    finalBossLabel: "강화 메인보스",
+    finalBossColor: "#b46cff",
+    finalBossGlow: "rgba(180, 108, 255, 0.42)",
+  },
+  hell: {
+    label: "헬",
+    enemyHpMultiplier: 1.6,
+    enemySpeedMultiplier: 1.18,
+    spawnRateMultiplier: 1.3,
+    maxEnemyMultiplier: 1.35,
+    bossHpMultiplier: 1.8,
+    bossDamageMultiplier: 1.2,
+    soulMultiplier: 1.5,
+    fastWeightMultiplier: 1.24,
+    tankWeightMultiplier: 1.38,
+    eliteWeightMultiplier: 1.65,
+    finalBossLabel: "지옥의 메인보스",
+    finalBossColor: "#ff5d73",
+    finalBossGlow: "rgba(255, 93, 115, 0.5)",
+  },
+};
+
+const finalBossBase = {
+  radius: 78,
+  hp: 3200,
+  speed: 27,
+  damage: 38,
+  score: 3000,
+  exp: 48,
+  expOrbs: 18,
+  supplyDrops: 3,
+  shockwaveDelay: 5.6,
+  shockwaveRadius: 190,
+  shockwaveDamage: 18,
+};
 
 const assetPaths = {
   player: "assets/player.jpg",
@@ -71,6 +167,7 @@ let joystickStartX = 0;
 let joystickStartY = 0;
 let joystickDeltaX = 0;
 let joystickDeltaY = 0;
+let permanentMenuReadOnly = false;
 
 const playerStart = {
   radius: 16,
@@ -431,6 +528,7 @@ let resizeFrameId = null;
 let nextEnemyId;
 let nextBossId;
 let permanentSave = loadPermanentSave();
+let selectedDifficulty = "normal";
 
 const upgrades = [
   {
@@ -831,6 +929,7 @@ function handleResize() {
 
 function resetGame(startImmediately = hasStartedGame) {
   const records = loadRecords();
+  ensureSelectedDifficultyUnlocked();
 
   player = {
     x: window.innerWidth / 2,
@@ -854,6 +953,7 @@ function resetGame(startImmediately = hasStartedGame) {
       mini: 0,
       mid: 0,
       big: 0,
+      final: 0,
     },
     level: 1,
     exp: 0,
@@ -862,9 +962,17 @@ function resetGame(startImmediately = hasStartedGame) {
     enemySpawnTimer: 0,
     supplyTimer: 0,
     isGameOver: false,
+    isGameCleared: false,
+    isPaused: false,
+    pauseReason: null,
     isLevelingUp: false,
     isChoosingUpgrade: false,
     isStarted: startImmediately,
+    selectedDifficulty,
+    finalBossSpawned: false,
+    finalBossDefeated: false,
+    clearCode: "",
+    clearUnlockMessage: "",
     currentUpgrades: [],
     earnedSoul: 0,
     soulAwarded: false,
@@ -882,6 +990,11 @@ function resetGame(startImmediately = hasStartedGame) {
     attackBuffTimer: 0,
     speedBuffTimer: 0,
     magnetBoostTimer: 0,
+    screenShakeTimer: 0,
+    screenShakeDuration: 0,
+    screenShakeStrength: 0,
+    hitStopTimer: 0,
+    hitStopCooldown: 0,
     bombPocket: {
       stacks: 0,
     },
@@ -1027,6 +1140,9 @@ function resetGame(startImmediately = hasStartedGame) {
 
   levelUpScreen.classList.add("hidden");
   gameOverScreen.classList.add("hidden");
+  clearScreen?.classList.add("hidden");
+  pauseScreen?.classList.add("hidden");
+  permanentGuideScreen?.classList.add("hidden");
   permanentUpgradeScreen?.classList.add("hidden");
   synergyPopupScreen?.classList.add("hidden");
   synergyCollectionScreen?.classList.add("hidden");
@@ -1034,6 +1150,7 @@ function resetGame(startImmediately = hasStartedGame) {
   setUiBlocking(!startImmediately);
   updateSoundButtons();
   updatePermanentSummary();
+  updatePauseUi();
   updateHud();
 
   cancelAnimationFrame(animationFrameId);
@@ -1069,6 +1186,38 @@ function createDefaultSynergyUnlocks() {
   return unlockedSynergies;
 }
 
+function createDefaultDifficultyUnlocks() {
+  return {
+    normal: true,
+    hard: false,
+    hell: false,
+  };
+}
+
+function createDefaultDifficultyRecords() {
+  return {
+    normal: {
+      cleared: false,
+      bestTime: 0,
+      bestScore: 0,
+      bestKills: 0,
+    },
+    hard: {
+      cleared: false,
+      bestTime: 0,
+      bestScore: 0,
+      bestKills: 0,
+    },
+    hell: {
+      cleared: false,
+      bestTime: 0,
+      bestScore: 0,
+      bestKills: 0,
+      lastClearCode: "",
+    },
+  };
+}
+
 function createDefaultPermanentSave() {
   const permanentUpgrades = {};
 
@@ -1083,6 +1232,9 @@ function createDefaultPermanentSave() {
     bestSurvivalTime: 0,
     permanentUpgrades,
     unlockedSynergies: createDefaultSynergyUnlocks(),
+    difficultyUnlocks: createDefaultDifficultyUnlocks(),
+    difficultyRecords: createDefaultDifficultyRecords(),
+    hasSeenPermanentUpgradeGuide: false,
     totalRuns: 0,
     totalKills: 0,
     totalBossKills: 0,
@@ -1107,6 +1259,12 @@ function migrateSaveData(data) {
   const unlockedSynergies = source.unlockedSynergies && typeof source.unlockedSynergies === "object"
     ? source.unlockedSynergies
     : {};
+  const difficultyUnlocks = source.difficultyUnlocks && typeof source.difficultyUnlocks === "object"
+    ? source.difficultyUnlocks
+    : {};
+  const difficultyRecords = source.difficultyRecords && typeof source.difficultyRecords === "object"
+    ? source.difficultyRecords
+    : {};
 
   for (const [key, definition] of Object.entries(permanentUpgradeDefinitions)) {
     const level = Number(upgrades[key] ?? 0);
@@ -1117,6 +1275,24 @@ function migrateSaveData(data) {
     defaults.unlockedSynergies[key] = Boolean(unlockedSynergies[key]);
   }
 
+  for (const key of Object.keys(difficultyConfigs)) {
+    defaults.difficultyUnlocks[key] = key === "normal" ? true : Boolean(difficultyUnlocks[key]);
+
+    const sourceRecord = difficultyRecords[key] && typeof difficultyRecords[key] === "object"
+      ? difficultyRecords[key]
+      : {};
+    const targetRecord = defaults.difficultyRecords[key];
+
+    targetRecord.cleared = Boolean(sourceRecord.cleared);
+    targetRecord.bestTime = Math.max(0, Number(sourceRecord.bestTime ?? 0) || 0);
+    targetRecord.bestScore = Math.max(0, Math.floor(Number(sourceRecord.bestScore ?? 0) || 0));
+    targetRecord.bestKills = Math.max(0, Math.floor(Number(sourceRecord.bestKills ?? 0) || 0));
+
+    if (key === "hell") {
+      targetRecord.lastClearCode = String(sourceRecord.lastClearCode ?? "");
+    }
+  }
+
   defaults.version = 1;
   defaults.soul = Math.max(0, Math.floor(Number(source.soul ?? defaults.soul) || 0));
   defaults.bestScore = Math.max(0, Math.floor(Number(source.bestScore ?? defaults.bestScore) || 0));
@@ -1124,6 +1300,7 @@ function migrateSaveData(data) {
   defaults.totalRuns = Math.max(0, Math.floor(Number(source.totalRuns ?? defaults.totalRuns) || 0));
   defaults.totalKills = Math.max(0, Math.floor(Number(source.totalKills ?? defaults.totalKills) || 0));
   defaults.totalBossKills = Math.max(0, Math.floor(Number(source.totalBossKills ?? defaults.totalBossKills) || 0));
+  defaults.hasSeenPermanentUpgradeGuide = Boolean(source.hasSeenPermanentUpgradeGuide);
 
   return defaults;
 }
@@ -1206,16 +1383,102 @@ function getEffectiveRarityChances() {
   };
 }
 
+function getCurrentDifficultyConfig() {
+  return difficultyConfigs[gameState?.selectedDifficulty || selectedDifficulty] ?? difficultyConfigs.normal;
+}
+
+function isDifficultyUnlocked(difficultyKey) {
+  return Boolean(permanentSave.difficultyUnlocks?.[difficultyKey]);
+}
+
+function ensureSelectedDifficultyUnlocked() {
+  if (!isDifficultyUnlocked(selectedDifficulty)) {
+    selectedDifficulty = "normal";
+  }
+}
+
+function getDifficultyLockMessage(difficultyKey) {
+  if (difficultyKey === "hard") {
+    return "노멀 모드를 클리어하면 어려움이 해금됩니다.";
+  }
+
+  if (difficultyKey === "hell") {
+    return "어려움 모드를 클리어하면 헬모드가 해금됩니다.";
+  }
+
+  return "";
+}
+
+function selectDifficulty(difficultyKey) {
+  if (!difficultyConfigs[difficultyKey]) {
+    return;
+  }
+
+  if (!isDifficultyUnlocked(difficultyKey)) {
+    if (difficultyMessage) {
+      difficultyMessage.textContent = getDifficultyLockMessage(difficultyKey);
+    }
+    playHitSound();
+    updateDifficultyMenu();
+    return;
+  }
+
+  selectedDifficulty = difficultyKey;
+  updateDifficultyMenu(`${difficultyConfigs[difficultyKey].label} 모드 선택됨`);
+}
+
+function updateDifficultyMenu(message = "") {
+  ensureSelectedDifficultyUnlocked();
+
+  const buttons = {
+    normal: difficultyNormalButton,
+    hard: difficultyHardButton,
+    hell: difficultyHellButton,
+  };
+
+  for (const [key, button] of Object.entries(buttons)) {
+    if (!button) {
+      continue;
+    }
+
+    const config = difficultyConfigs[key];
+    const unlocked = isDifficultyUnlocked(key);
+
+    button.textContent = `${config.label}${unlocked ? "" : " 🔒"}`;
+    button.classList.toggle("is-selected", selectedDifficulty === key);
+    button.classList.toggle("is-locked", !unlocked);
+    button.setAttribute?.("aria-disabled", String(!unlocked));
+  }
+
+  if (difficultyMessage) {
+    difficultyMessage.textContent = message || `${difficultyConfigs[selectedDifficulty].label} 모드 선택됨`;
+  }
+}
+
 function calculateSoulReward() {
   const survivalSoul = Math.floor(gameState.elapsedTime / 10);
   const killSoul = Math.floor(gameState.kills / 20);
   const bossSoul =
     (gameState.bossKillCounts.mini ?? 0) * 5 +
     (gameState.bossKillCounts.mid ?? 0) * 15 +
-    (gameState.bossKillCounts.big ?? 0) * 30;
+    (gameState.bossKillCounts.big ?? 0) * 30 +
+    (gameState.bossKillCounts.final ?? 0) * 200;
   const levelSoul = gameState.level;
+  const difficultyMultiplier = getCurrentDifficultyConfig().soulMultiplier;
 
-  return Math.max(0, Math.floor(survivalSoul + killSoul + bossSoul + levelSoul));
+  return Math.max(0, Math.floor((survivalSoul + killSoul + bossSoul + levelSoul) * difficultyMultiplier));
+}
+
+function canBuyAnyPermanentUpgrade() {
+  return Object.entries(permanentUpgradeDefinitions).some(([id, definition]) => {
+    const level = getPermanentLevel(id);
+
+    if (level >= definition.maxLevel) {
+      return false;
+    }
+
+    return permanentSave.soul >= getPermanentUpgradeCost(definition, level);
+  });
 }
 
 function awardSoulForRun(bestScore, bestTime) {
@@ -1244,9 +1507,21 @@ function updatePermanentSummary() {
     startSoulValue.textContent = permanentSave.soul;
   }
 
+  if (startSoulCtaValue) {
+    startSoulCtaValue.textContent = permanentSave.soul;
+  }
+
   if (permanentSoulValue) {
     permanentSoulValue.textContent = permanentSave.soul;
   }
+
+  const canUpgrade = canBuyAnyPermanentUpgrade();
+
+  openPermanentButton?.classList.toggle("has-upgrade", canUpgrade);
+  openPermanentGameOverButton?.classList.toggle("has-upgrade", canUpgrade);
+  startPermanentBadge?.classList.toggle("hidden", !canUpgrade);
+
+  updateDifficultyMenu();
 }
 
 function loadRecords() {
@@ -1288,6 +1563,7 @@ function updateSoundButtons() {
 
   if (soundStartButton) soundStartButton.textContent = text;
   if (soundHudButton) soundHudButton.textContent = text;
+  if (pauseSoundButton) pauseSoundButton.textContent = text;
 }
 
 // ===== 사운드 시스템 =====
@@ -1341,6 +1617,105 @@ function setSoundEnabled(nextValue, unlockNow = false) {
 
 function toggleSound() {
   setSoundEnabled(!soundEnabled, gameState?.isStarted);
+}
+
+function canPauseGame() {
+  if (!gameState?.isStarted || gameState.isGameOver || gameState.isGameCleared) {
+    return false;
+  }
+
+  if (gameState.isLevelingUp || gameState.isSynergyPopupOpen) {
+    return false;
+  }
+
+  const blockingOverlayOpen =
+    (permanentUpgradeScreen && !permanentUpgradeScreen.classList.contains("hidden")) ||
+    (synergyCollectionScreen && !synergyCollectionScreen.classList.contains("hidden")) ||
+    (permanentGuideScreen && !permanentGuideScreen.classList.contains("hidden"));
+
+  return !blockingOverlayOpen;
+}
+
+function togglePause() {
+  if (!canPauseGame()) {
+    return;
+  }
+
+  if (gameState.isPaused) {
+    resumeGame();
+  } else {
+    pauseGame("manual");
+  }
+}
+
+function pauseGame(reason = "manual") {
+  if (!gameState?.isStarted || gameState.isPaused || gameState.isGameOver || gameState.isLevelingUp || gameState.isSynergyPopupOpen) {
+    return;
+  }
+
+  gameState.isPaused = true;
+  gameState.pauseReason = reason;
+  pauseScreen?.classList.remove("hidden");
+  setUiBlocking(true);
+  resetJoystick();
+  updatePauseUi();
+}
+
+function resumeGame() {
+  if (!gameState?.isPaused) {
+    return;
+  }
+
+  gameState.isPaused = false;
+  gameState.pauseReason = null;
+  pauseScreen?.classList.add("hidden");
+  lastTime = performance.now();
+  setUiBlocking(false);
+  updatePauseUi();
+}
+
+function updatePauseUi() {
+  const canShowPauseButton = Boolean(gameState?.isStarted && !gameState.isGameOver && !gameState.isGameCleared);
+
+  pauseButton?.classList.toggle("hidden", !canShowPauseButton);
+  pauseButton?.classList.toggle("is-paused", Boolean(gameState?.isPaused));
+
+  if (pauseButton) {
+    pauseButton.textContent = gameState?.isPaused ? "▶" : "⏸";
+  }
+}
+
+function openPermanentFromPause() {
+  openPermanentUpgradeMenu({
+    readOnly: true,
+    message: "영구 강화는 게임오버 후 또는 메인 메뉴에서 구매할 수 있습니다.",
+  });
+}
+
+function maybeShowPermanentGuide() {
+  if (permanentSave.hasSeenPermanentUpgradeGuide || gameState.earnedSoul <= 0) {
+    return;
+  }
+
+  permanentGuideScreen?.classList.remove("hidden");
+  setUiBlocking(true);
+}
+
+function closePermanentGuide(markSeen = true) {
+  permanentGuideScreen?.classList.add("hidden");
+
+  if (markSeen && !permanentSave.hasSeenPermanentUpgradeGuide) {
+    permanentSave.hasSeenPermanentUpgradeGuide = true;
+    savePermanentSave();
+  }
+
+  const shouldBlock = !gameState?.isStarted || gameState?.isGameOver || gameState?.isLevelingUp || gameState?.isPaused;
+  setUiBlocking(shouldBlock);
+}
+
+function openPermanentFromGuide() {
+  closePermanentGuide(true);
+  openPermanentUpgradeMenu();
 }
 
 function canPlaySound(name, cooldown) {
@@ -1468,6 +1843,25 @@ function playSynergyActivateSound() {
   playTone(920, 0.06, "sine", 0.12, 0.06, 1180);
 }
 
+function playFinalBossSound() {
+  if (!canPlaySound("final-boss", 1.0)) return;
+  playTone(80, 0.42, "sawtooth", 0.24, 0, 50);
+  playTone(150, 0.28, "triangle", 0.18, 0.18, 95);
+}
+
+function playGameClearSound() {
+  if (!canPlaySound("game-clear", 1.0)) return;
+  playTone(420, 0.12, "sine", 0.22, 0, 640);
+  playTone(640, 0.14, "sine", 0.2, 0.1, 920);
+  playTone(920, 0.18, "triangle", 0.18, 0.24, 1260);
+}
+
+function playModeUnlockSound() {
+  if (!canPlaySound("mode-unlock", 0.8)) return;
+  playTone(520, 0.1, "triangle", 0.22, 0, 760);
+  playTone(760, 0.12, "triangle", 0.2, 0.1, 1120);
+}
+
 function startBgm() {
   if (!soundEnabled || !gameState?.isStarted || gameState?.isGameOver || bgmTimer) {
     return;
@@ -1578,6 +1972,7 @@ function unlockBombWeapon() {
 
 function getDifficulty() {
   const time = gameState.elapsedTime;
+  const config = getCurrentDifficultyConfig();
   let spawnDelay = 0.86;
   let enemySpeedBonus = 0;
   let maxEnemies = 61;
@@ -1617,11 +2012,11 @@ function getDifficulty() {
   }
 
   return {
-    spawnDelay: Math.max(0.34, spawnDelay) / getBossSpawnMultiplier(),
+    spawnDelay: Math.max(0.34, spawnDelay) / getBossSpawnMultiplier() / config.spawnRateMultiplier,
     enemySpeedBonus,
-    enemyHpMultiplier,
-    maxEnemies,
-    maxEnemySpeed,
+    enemyHpMultiplier: enemyHpMultiplier * config.enemyHpMultiplier,
+    maxEnemies: Math.floor(maxEnemies * config.maxEnemyMultiplier),
+    maxEnemySpeed: maxEnemySpeed * config.enemySpeedMultiplier,
   };
 }
 
@@ -1634,10 +2029,11 @@ function getBossSpawnMultiplier() {
 
 function chooseEnemyType() {
   const time = gameState.elapsedTime;
+  const config = getCurrentDifficultyConfig();
   const normalWeight = Math.max(22, 90 - Math.max(0, time - 20) * 0.35);
-  const fastWeight = Math.min(55, 18 + Math.max(0, time - 20) * 0.25);
-  const tankWeight = Math.min(34, Math.max(0, (time - 120) * 0.22));
-  const eliteWeight = Math.min(28, Math.max(0, (time - 180) * 0.16));
+  const fastWeight = Math.min(55, 18 + Math.max(0, time - 20) * 0.25) * config.fastWeightMultiplier;
+  const tankWeight = Math.min(34, Math.max(0, (time - 120) * 0.22)) * config.tankWeightMultiplier;
+  const eliteWeight = Math.min(28, Math.max(0, (time - 180) * 0.16)) * config.eliteWeightMultiplier;
   const totalWeight = normalWeight + fastWeight + tankWeight + eliteWeight;
   const roll = Math.random() * totalWeight;
 
@@ -1674,7 +2070,7 @@ function spawnEnemy() {
   }
 
   const type = chooseEnemyType();
-  const speed = Math.min(type.speed + difficulty.enemySpeedBonus, difficulty.maxEnemySpeed);
+  const speed = Math.min((type.speed + difficulty.enemySpeedBonus) * getCurrentDifficultyConfig().enemySpeedMultiplier, difficulty.maxEnemySpeed);
   const maxHp = Math.ceil(type.hp * difficulty.enemyHpMultiplier);
 
   enemies.push({
@@ -1701,6 +2097,8 @@ function spawnEnemy() {
 }
 
 function checkBossSpawn() {
+  checkFinalBossSpawn();
+
   const minute = Math.floor(gameState.elapsedTime / 60);
 
   if (minute < 1 || gameState.spawnedBossMinutes.has(minute)) {
@@ -1718,8 +2116,84 @@ function checkBossSpawn() {
   gameState.spawnedBossMinutes.add(minute);
 }
 
+function checkFinalBossSpawn() {
+  if (gameState.finalBossSpawned || gameState.elapsedTime < FINAL_BOSS_TIME) {
+    return;
+  }
+
+  gameState.finalBossSpawned = true;
+  gameState.spawnedBossMinutes.add(10);
+  spawnFinalBoss();
+}
+
+function spawnFinalBoss() {
+  const config = getCurrentDifficultyConfig();
+  const side = Math.floor(Math.random() * 4);
+  const margin = 110;
+  let x;
+  let y;
+
+  if (side === 0) {
+    x = Math.random() * window.innerWidth;
+    y = -margin;
+  } else if (side === 1) {
+    x = window.innerWidth + margin;
+    y = Math.random() * window.innerHeight;
+  } else if (side === 2) {
+    x = Math.random() * window.innerWidth;
+    y = window.innerHeight + margin;
+  } else {
+    x = -margin;
+    y = Math.random() * window.innerHeight;
+  }
+
+  const maxHp = Math.ceil(finalBossBase.hp * config.bossHpMultiplier);
+
+  bosses.push({
+    kind: "boss",
+    id: nextBossId,
+    bossType: "final",
+    isFinalBoss: true,
+    difficultyKey: gameState.selectedDifficulty,
+    label: config.finalBossLabel,
+    x,
+    y,
+    radius: getScaledRadius(finalBossBase.radius, "boss", "final"),
+    baseRadius: finalBossBase.radius,
+    maxHp,
+    hp: maxHp,
+    speed: finalBossBase.speed,
+    damage: Math.ceil(finalBossBase.damage * config.bossDamageMultiplier),
+    score: finalBossBase.score,
+    exp: finalBossBase.exp,
+    expOrbs: finalBossBase.expOrbs,
+    supplyDrops: finalBossBase.supplyDrops,
+    fill: config.finalBossColor,
+    stroke: config.finalBossColor,
+    touchCooldown: 0,
+    orbCooldown: 0,
+    summonTimer: 0,
+    shockwaveTimer: finalBossBase.shockwaveDelay,
+    shockwaveRadius: finalBossBase.shockwaveRadius,
+    shockwaveDamage: Math.ceil(finalBossBase.shockwaveDamage * config.bossDamageMultiplier),
+    spawnAge: 0,
+    spawnDuration: 0.9,
+  });
+
+  nextBossId += 1;
+  showBanner(`${config.finalBossLabel} 등장!`, config.finalBossColor);
+  addEffect({
+    type: "screen-flash",
+    duration: 0.34,
+    color: gameState.selectedDifficulty === "hell" ? "rgba(255, 93, 115, 0.18)" : "rgba(255, 212, 71, 0.16)",
+  });
+  addScreenShake(gameState.selectedDifficulty === "hell" ? 11 : 8, 0.2);
+  playFinalBossSound();
+}
+
 function spawnBoss(typeKey, minute) {
   const type = bossTypes[typeKey];
+  const config = getCurrentDifficultyConfig();
   const side = Math.floor(Math.random() * 4);
   const margin = 90;
   let x;
@@ -1739,6 +2213,8 @@ function spawnBoss(typeKey, minute) {
     y = Math.random() * window.innerHeight;
   }
 
+  const maxHp = Math.ceil((type.hp + Math.floor(minute * type.hp * 0.08)) * config.bossHpMultiplier);
+
   bosses.push({
     kind: "boss",
     id: nextBossId,
@@ -1748,10 +2224,10 @@ function spawnBoss(typeKey, minute) {
     y,
     radius: getScaledRadius(type.radius, "boss", typeKey),
     baseRadius: type.radius,
-    maxHp: type.hp + Math.floor(minute * type.hp * 0.08),
-    hp: type.hp + Math.floor(minute * type.hp * 0.08),
+    maxHp,
+    hp: maxHp,
     speed: type.speed,
-    damage: type.damage,
+    damage: Math.ceil(type.damage * config.bossDamageMultiplier),
     score: type.score,
     exp: type.exp,
     expOrbs: type.expOrbs,
@@ -1775,6 +2251,7 @@ function spawnBoss(typeKey, minute) {
       color: "rgba(255, 212, 71, 0.14)",
     });
   }
+  addScreenShake(typeKey === "big" ? 7 : 5, 0.15);
   playBossAppearSound();
 }
 
@@ -1958,9 +2435,13 @@ function createFlameZone(x, y, options = {}) {
 
 function addEffect(effect) {
   effects.push({ age: 0, ...effect });
+
+  if (effects.length > 180) {
+    effects.splice(0, effects.length - 180);
+  }
 }
 
-function addFloatingText(text, x, y, color = "#ffffff", size = 18, duration = 0.9) {
+function addFloatingText(text, x, y, color = "#ffffff", size = 18, duration = 0.9, options = {}) {
   floatingTexts.push({
     text,
     x,
@@ -1969,8 +2450,14 @@ function addFloatingText(text, x, y, color = "#ffffff", size = 18, duration = 0.
     size,
     duration,
     age: 0,
-    vy: -34,
+    vy: options.vy ?? -34,
+    weight: options.weight ?? 800,
+    align: options.align,
   });
+
+  if (floatingTexts.length > 110) {
+    floatingTexts.splice(0, floatingTexts.length - 110);
+  }
 }
 
 function showBanner(text, color = "#ffd447") {
@@ -1987,8 +2474,111 @@ function showBanner(text, color = "#ffd447") {
   });
 }
 
+function triggerScreenShake(duration = 0.3, strength = 7) {
+  gameState.screenShakeTimer = duration;
+  gameState.screenShakeDuration = duration;
+  gameState.screenShakeStrength = strength;
+}
+
+function addScreenShake(intensity = 5, duration = 0.12) {
+  if (!gameState || gameState.isPaused) {
+    return;
+  }
+
+  const mobileScale = getResponsiveBalance() === mobileBalance ? 0.65 : 1;
+
+  triggerScreenShake(duration, intensity * mobileScale);
+}
+
+function triggerHitStop(duration = 0.04) {
+  if (!gameState || gameState.hitStopCooldown > 0 || gameState.isPaused) {
+    return;
+  }
+
+  gameState.hitStopTimer = Math.max(gameState.hitStopTimer, duration);
+  gameState.hitStopCooldown = 0.18;
+}
+
+function addParticleBurst(x, y, options = {}) {
+  const count = options.count ?? 5;
+  const color = options.color ?? "#ffd447";
+  const speed = options.speed ?? 120;
+  const size = options.size ?? 3;
+  const duration = options.duration ?? 0.45;
+
+  for (let index = 0; index < count; index++) {
+    const angle = Math.random() * TAU;
+    const particleSpeed = speed * (0.55 + Math.random() * 0.7);
+
+    addEffect({
+      type: "particle",
+      x,
+      y,
+      vx: Math.cos(angle) * particleSpeed,
+      vy: Math.sin(angle) * particleSpeed,
+      radius: size * (0.7 + Math.random() * 0.6),
+      duration,
+      color,
+    });
+  }
+}
+
+function getDamageTextStyle(source, target, damage) {
+  const style = {
+    color: "#f6f2e8",
+    size: target.kind === "boss" ? 20 : 15,
+    duration: 0.65,
+    vy: -34,
+    weight: target.kind === "boss" ? 900 : 800,
+  };
+
+  if (/폭발|폭탄|메테오|파열|전체/.test(source)) {
+    style.color = "#ffd447";
+    style.size += 4;
+    style.duration = 0.78;
+    style.vy = -42;
+  } else if (/번개/.test(source)) {
+    style.color = "#8be9ff";
+    style.size += 2;
+    style.duration = 0.52;
+    style.vy = -56;
+  } else if (/화염/.test(source)) {
+    style.color = "#ff7043";
+  } else if (/오라/.test(source)) {
+    style.color = "#b46cff";
+  } else if (/피의 반격|시너지|빙결/.test(source)) {
+    style.color = "#ff6b81";
+    style.size += 2;
+  }
+
+  if (damage >= 10) {
+    style.size += 2;
+    style.weight = 900;
+  }
+
+  return style;
+}
+
+function addDamageText(target, damage, source) {
+  const style = getDamageTextStyle(source, target, damage);
+
+  addFloatingText(
+    String(Math.ceil(damage)),
+    target.x + (Math.random() - 0.5) * target.radius * 0.45,
+    target.y - target.radius,
+    style.color,
+    style.size,
+    style.duration,
+    {
+      vy: style.vy,
+      weight: style.weight,
+    },
+  );
+}
+
 function createShockwave(x, y, radius, damage, force, color, source = "충격파") {
   playExplosionSound();
+  addScreenShake(4, 0.08);
 
   for (const target of getAllTargets()) {
     const distance = getDistance(x, y, target.x, target.y);
@@ -1996,8 +2586,8 @@ function createShockwave(x, y, radius, damage, force, color, source = "충격파
     if (distance < radius + target.radius) {
       const angle = Math.atan2(target.y - y, target.x - x);
 
-      target.x += Math.cos(angle) * force * (target.kind === "boss" ? 0.35 : 1);
-      target.y += Math.sin(angle) * force * (target.kind === "boss" ? 0.35 : 1);
+      target.x += Math.cos(angle) * force * (target.kind === "boss" ? 0 : 1);
+      target.y += Math.sin(angle) * force * (target.kind === "boss" ? 0 : 1);
       damageTarget(target, damage, 0, source);
     }
   }
@@ -2013,19 +2603,32 @@ function createShockwave(x, y, radius, damage, force, color, source = "충격파
 }
 
 function damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier = 1, knockback = 0, options = {}) {
+  let hitCount = 0;
+
   for (const target of getAllTargets()) {
     const distance = getDistance(x, y, target.x, target.y);
 
     if (distance < radius + target.radius) {
       const finalDamage = target.kind === "boss" ? damage * bossDamageMultiplier : damage;
       damageTarget(target, finalDamage, knockback, source, options);
+      hitCount += 1;
     }
   }
+
+  return hitCount;
 }
 
 function explodeAt(x, y, radius, damage, color = "rgba(255, 212, 71, 0.5)", source = "폭발", bossDamageMultiplier = 0.45) {
   playExplosionSound();
-  damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier, 8);
+  const hitCount = damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier, 8);
+
+  if (source !== "파편 폭탄") {
+    addScreenShake(source === "메테오" ? 7 : 4, source === "메테오" ? 0.12 : 0.08);
+  }
+
+  if (hitCount >= 3 || source === "메테오") {
+    triggerHitStop(source === "메테오" ? 0.05 : 0.035);
+  }
 
   addEffect({
     type: "circle",
@@ -2250,6 +2853,7 @@ function updateBosses(deltaTime) {
     boss.y += Math.sin(angle) * boss.speed * frostSlow * deltaTime;
     boss.touchCooldown = Math.max(0, boss.touchCooldown - deltaTime);
     boss.orbCooldown = Math.max(0, boss.orbCooldown - deltaTime);
+    boss.hitFlashTimer = Math.max(0, (boss.hitFlashTimer ?? 0) - deltaTime);
 
     if (boss.bossType === "mid") {
       boss.summonTimer -= deltaTime;
@@ -2266,6 +2870,15 @@ function updateBosses(deltaTime) {
       if (boss.shockwaveTimer <= 0) {
         createBossShockwave(boss);
         boss.shockwaveTimer = bossTypes.big.shockwaveDelay;
+      }
+    }
+
+    if (boss.isFinalBoss) {
+      boss.shockwaveTimer -= deltaTime;
+
+      if (boss.shockwaveTimer <= 0) {
+        createFinalBossShockwave(boss);
+        boss.shockwaveTimer = finalBossBase.shockwaveDelay;
       }
     }
   }
@@ -2326,6 +2939,23 @@ function createBossShockwave(boss) {
 
   if (getDistance(player.x, player.y, boss.x, boss.y) < radius + player.radius) {
     damagePlayer(14, false);
+  }
+}
+
+function createFinalBossShockwave(boss) {
+  const radius = boss.shockwaveRadius ?? finalBossBase.shockwaveRadius;
+
+  addEffect({
+    type: "ring",
+    x: boss.x,
+    y: boss.y,
+    radius,
+    duration: 0.66,
+    color: `${boss.fill}aa`,
+  });
+
+  if (getDistance(player.x, player.y, boss.x, boss.y) < radius + player.radius) {
+    damagePlayer(boss.shockwaveDamage ?? finalBossBase.shockwaveDamage, false);
   }
 }
 
@@ -2530,6 +3160,17 @@ function updateEnemies(deltaTime) {
 
     enemy.x += Math.cos(angle) * enemy.speed * speedMultiplier * deltaTime;
     enemy.y += Math.sin(angle) * enemy.speed * speedMultiplier * deltaTime;
+    enemy.x += (enemy.knockbackX ?? 0) * deltaTime;
+    enemy.y += (enemy.knockbackY ?? 0) * deltaTime;
+    enemy.knockbackX = (enemy.knockbackX ?? 0) * Math.pow(0.04, deltaTime);
+    enemy.knockbackY = (enemy.knockbackY ?? 0) * Math.pow(0.04, deltaTime);
+
+    if (Math.abs(enemy.knockbackX) < 1) enemy.knockbackX = 0;
+    if (Math.abs(enemy.knockbackY) < 1) enemy.knockbackY = 0;
+
+    enemy.x = clamp(enemy.x, -90, window.innerWidth + 90);
+    enemy.y = clamp(enemy.y, -90, window.innerHeight + 90);
+    enemy.hitFlashTimer = Math.max(0, (enemy.hitFlashTimer ?? 0) - deltaTime);
     enemy.touchCooldown = Math.max(0, enemy.touchCooldown - deltaTime);
     enemy.orbCooldown = Math.max(0, enemy.orbCooldown - deltaTime);
   }
@@ -2618,8 +3259,17 @@ function updateAuraDamage(deltaTime) {
 }
 
 function updateVisualEffects(deltaTime) {
+  gameState.screenShakeTimer = Math.max(0, gameState.screenShakeTimer - deltaTime);
+
   for (const effect of effects) {
     effect.age += deltaTime;
+
+    if (effect.type === "particle") {
+      effect.x += effect.vx * deltaTime;
+      effect.y += effect.vy * deltaTime;
+      effect.vx *= Math.pow(0.08, deltaTime);
+      effect.vy *= Math.pow(0.08, deltaTime);
+    }
   }
 
   for (const line of lightningLines) {
@@ -2642,6 +3292,7 @@ function applySupplyReward(x, y) {
       text: "HP 회복!",
       apply() {
         player.hp = Math.min(player.maxHp, player.hp + 20);
+        addFloatingText("+20", player.x, player.y - player.radius - 24, "#64f7b4", 18, 0.8);
       },
     },
     {
@@ -2843,6 +3494,7 @@ function damagePlayer(amount, triggerShockwave) {
 
   player.hp -= amount;
   playPlayerDamageSound();
+  addScreenShake(4, 0.1);
   addFloatingText(`-${Math.ceil(amount)}`, player.x, player.y - 28, "#ff6b81", 18, 0.8);
 
   if (isSynergyActive("bloodCounter")) {
@@ -2878,6 +3530,7 @@ function triggerBloodCounter() {
   gameState.synergy.bloodCounterCooldown = 1.5;
   playExplosionSound();
   damageTargetsInRadius(player.x, player.y, radius, damage, "피의 반격", 0.5, 4);
+  triggerHitStop(0.035);
   addFloatingText("피의 반격!", player.x, player.y - player.radius - 26, "#ff6b81", 21, 1);
   addEffect({
     type: "ring",
@@ -2901,6 +3554,7 @@ function damageTarget(target, rawDamage, knockback, source, options = {}) {
   }
 
   target.hp -= finalDamage;
+  target.hitFlashTimer = target.kind === "boss" ? 0.06 : 0.08;
   recordWeaponDamage(source, finalDamage);
 
   if (options.showText !== false) {
@@ -2908,15 +3562,24 @@ function damageTarget(target, rawDamage, knockback, source, options = {}) {
   }
 
   if (options.showText !== false && finalDamage >= 0.5) {
-    addFloatingText(String(Math.ceil(finalDamage)), target.x, target.y - target.radius, "#f6f2e8", target.kind === "boss" ? 20 : 16, 0.7);
+    addDamageText(target, finalDamage, source);
   }
 
   if (knockback > 0) {
     const angle = Math.atan2(target.y - player.y, target.x - player.x);
-    const force = target.kind === "boss" ? knockback * 0.25 : knockback;
 
-    target.x += Math.cos(angle) * force;
-    target.y += Math.sin(angle) * force;
+    if (target.kind !== "boss") {
+      const resistance = {
+        normal: 1,
+        fast: 1.12,
+        tank: 0.25,
+        elite: 0.45,
+      }[target.type] ?? 1;
+      const force = knockback * 18 * resistance;
+
+      target.knockbackX = (target.knockbackX ?? 0) + Math.cos(angle) * force;
+      target.knockbackY = (target.knockbackY ?? 0) + Math.sin(angle) * force;
+    }
   }
 
   if (target.hp <= 0) {
@@ -2948,12 +3611,14 @@ function defeatTarget(target) {
 
   if (gameState.killHealChance > 0 && Math.random() < gameState.killHealChance) {
     player.hp = Math.min(player.maxHp, player.hp + 1);
+    addFloatingText("+1", player.x, player.y - player.radius - 24, "#64f7b4", 15, 0.7);
   }
 
   if (gameState.flameBurst.enabled && Math.random() < gameState.flameBurst.chance) {
     createFlameZone(target.x, target.y);
   }
 
+  addEnemyDefeatParticles(target);
   addEffect({
     type: "circle",
     x: target.x,
@@ -2965,12 +3630,26 @@ function defeatTarget(target) {
   enemies = enemies.filter((enemy) => enemy !== target);
 }
 
+function addEnemyDefeatParticles(target) {
+  const particleSettings = {
+    normal: { count: 5, color: "rgba(255, 107, 129, 0.9)", speed: 105, size: 2.6, duration: 0.42 },
+    fast: { count: 5, color: "rgba(255, 177, 67, 0.92)", speed: 155, size: 2.2, duration: 0.36 },
+    tank: { count: 7, color: "rgba(109, 93, 252, 0.9)", speed: 95, size: 3.7, duration: 0.55 },
+    elite: { count: 9, color: "rgba(255, 212, 71, 0.95)", speed: 145, size: 3.2, duration: 0.58 },
+  };
+
+  addParticleBurst(target.x, target.y, particleSettings[target.type] ?? particleSettings.normal);
+}
+
 function defeatBoss(boss) {
   playEnemyDeathSound();
   gameState.score += boss.score;
   gameState.kills += 1;
   gameState.bossKills += 1;
   gameState.bossKillCounts[boss.bossType] = (gameState.bossKillCounts[boss.bossType] ?? 0) + 1;
+  if (boss.isFinalBoss) {
+    gameState.finalBossDefeated = true;
+  }
   spawnExpBurst(boss.x, boss.y, boss.expOrbs, boss.exp);
 
   for (let index = 0; index < boss.supplyDrops; index++) {
@@ -2978,6 +3657,15 @@ function defeatBoss(boss) {
   }
 
   addFloatingText(`${boss.label} 처치!`, boss.x, boss.y - boss.radius, "#ffd447", 26, 1.5);
+  addScreenShake(boss.isFinalBoss ? 12 : 8, boss.isFinalBoss ? 0.24 : 0.16);
+  triggerHitStop(boss.isFinalBoss ? 0.06 : 0.045);
+  addParticleBurst(boss.x, boss.y, {
+    count: boss.isFinalBoss ? 22 : 15,
+    color: boss.isFinalBoss ? "rgba(255, 212, 71, 0.98)" : "rgba(255, 212, 71, 0.9)",
+    speed: boss.isFinalBoss ? 210 : 165,
+    size: boss.isFinalBoss ? 4.8 : 4,
+    duration: boss.isFinalBoss ? 0.9 : 0.7,
+  });
   addEffect({
     type: "circle",
     x: boss.x,
@@ -2987,6 +3675,10 @@ function defeatBoss(boss) {
     color: "rgba(255, 212, 71, 0.34)",
   });
   bosses = bosses.filter((item) => item !== boss);
+
+  if (boss.isFinalBoss) {
+    clearGame();
+  }
 }
 
 function addExperience(amount) {
@@ -3197,6 +3889,7 @@ function openNextSynergyPopup() {
   gameState.isSynergyPopupOpen = true;
   setUiBlocking(true);
   resetJoystick();
+  addScreenShake(5, 0.12);
   playSynergyUnlockSound();
 }
 
@@ -3218,6 +3911,7 @@ function closeSynergyPopup() {
     !gameState?.isStarted ||
     gameState?.isLevelingUp ||
     gameState?.isGameOver ||
+    gameState?.isPaused ||
     collectionOpen;
 
   setUiBlocking(shouldBlock);
@@ -3283,7 +3977,8 @@ function closeSynergyCollection() {
     !gameState?.isStarted ||
     gameState?.isLevelingUp ||
     gameState?.isGameOver ||
-    gameState?.isSynergyPopupOpen;
+    gameState?.isSynergyPopupOpen ||
+    gameState?.isPaused;
 
   setUiBlocking(shouldBlock);
 }
@@ -3383,6 +4078,7 @@ function rerollUpgrades() {
 
 function updateGame(deltaTime) {
   gameState.elapsedTime += deltaTime;
+  gameState.hitStopCooldown = Math.max(0, gameState.hitStopCooldown - deltaTime);
   checkBossSpawn();
 
   const difficulty = getDifficulty();
@@ -3602,6 +4298,21 @@ function drawPlayer() {
   });
 }
 
+function drawHitFlash(entity) {
+  if ((entity.hitFlashTimer ?? 0) <= 0) {
+    return;
+  }
+
+  const alpha = Math.min(0.42, (entity.hitFlashTimer / 0.08) * 0.36);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(entity.x, entity.y, entity.radius + 1, 0, TAU);
+  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawFastEnemyTrail(enemy) {
   const angle = Math.atan2(enemy.y - player.y, enemy.x - player.x);
 
@@ -3697,10 +4408,25 @@ function drawEnemy(enemy) {
   }
 
   drawCircularImage(getLoadedImage("enemy"), enemy.x, enemy.y, enemy.radius, style);
+  drawHitFlash(enemy);
   drawEnemyIcon(enemy);
 }
 
 function getBossDrawStyle(boss) {
+  if (boss.isFinalBoss) {
+    const config = difficultyConfigs[boss.difficultyKey] ?? difficultyConfigs.normal;
+
+    return {
+      imageKey: "bigboss",
+      borderColor: config.finalBossColor,
+      borderWidth: 7,
+      fallbackFill: boss.fill,
+      glowColor: config.finalBossGlow,
+      shadow: true,
+      shadowBlur: boss.difficultyKey === "hell" ? 36 : 30,
+    };
+  }
+
   if (boss.bossType === "big") {
     return {
       imageKey: "bigboss",
@@ -3752,17 +4478,42 @@ function drawBoss(boss) {
   const drawRadius = boss.radius * getBossAppearScale(boss);
 
   drawCircularImage(getLoadedImage(style.imageKey), boss.x, boss.y, drawRadius, style);
+  drawHitFlash(boss);
 }
 
 function drawBossBars() {
-  const activeBosses = bosses.slice(0, 3);
+  const finalBoss = bosses.find((boss) => boss.isFinalBoss);
+  let startY = 68;
+
+  if (finalBoss) {
+    const width = Math.min(620, window.innerWidth - 36);
+    const height = 15;
+    const x = (window.innerWidth - width) / 2;
+    const y = 60;
+    const ratio = Math.max(0, finalBoss.hp / finalBoss.maxHp);
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.58)";
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = finalBoss.fill;
+    ctx.fillRect(x, y, width * ratio, height);
+    ctx.strokeStyle = "rgba(246, 242, 232, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, width, height);
+    ctx.fillStyle = "#f6f2e8";
+    ctx.font = "900 14px Segoe UI, Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(finalBoss.label, x, y - 6);
+    startY = 86;
+  }
+
+  const activeBosses = bosses.filter((boss) => !boss.isFinalBoss).slice(0, 3);
 
   for (let index = 0; index < activeBosses.length; index++) {
     const boss = activeBosses[index];
     const width = Math.min(460, window.innerWidth - 48);
     const height = 10;
     const x = (window.innerWidth - width) / 2;
-    const y = 68 + index * 18;
+    const y = startY + index * 18;
     const ratio = Math.max(0, boss.hp / boss.maxHp);
 
     ctx.fillStyle = "rgba(0, 0, 0, 0.48)";
@@ -3899,6 +4650,16 @@ function drawEffects() {
       continue;
     }
 
+    if (effect.type === "particle") {
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(effect.x, effect.y, effect.radius * Math.max(0.2, alpha), 0, TAU);
+      ctx.fillStyle = effect.color;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+
     ctx.beginPath();
     ctx.arc(effect.x, effect.y, effect.radius * Math.max(0.08, progress), 0, TAU);
 
@@ -3955,7 +4716,7 @@ function drawFloatingTexts() {
 
     ctx.globalAlpha = alpha;
     ctx.fillStyle = text.color;
-    ctx.font = `800 ${text.size}px Segoe UI, Arial, sans-serif`;
+    ctx.font = `${text.weight ?? 800} ${text.size}px Segoe UI, Arial, sans-serif`;
     ctx.textAlign = text.align ?? "center";
     ctx.fillText(text.text, text.x, text.y);
     ctx.globalAlpha = 1;
@@ -3971,7 +4732,22 @@ function drawTimeSlowOverlay() {
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 }
 
+function applyScreenShake() {
+  if (gameState.screenShakeTimer <= 0 || gameState.screenShakeDuration <= 0) {
+    return false;
+  }
+
+  const progress = gameState.screenShakeTimer / gameState.screenShakeDuration;
+  const strength = gameState.screenShakeStrength * progress;
+
+  ctx.save();
+  ctx.translate((Math.random() - 0.5) * strength, (Math.random() - 0.5) * strength);
+  return true;
+}
+
 function drawGame() {
+  const isShaking = applyScreenShake();
+
   drawBackground();
   drawTimeSlowOverlay();
   drawPlayerAuras();
@@ -4011,6 +4787,10 @@ function drawGame() {
   drawPlayer();
   drawBossBars();
   drawFloatingTexts();
+
+  if (isShaking) {
+    ctx.restore();
+  }
 }
 
 function gameLoop(currentTime) {
@@ -4021,9 +4801,11 @@ function gameLoop(currentTime) {
   const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.05);
   lastTime = currentTime;
 
-  if (gameState.isStarted && !gameState.isLevelingUp && !gameState.isSynergyPopupOpen) {
+  if (gameState.hitStopTimer > 0 && !gameState.isPaused) {
+    gameState.hitStopTimer = Math.max(0, gameState.hitStopTimer - deltaTime);
+  } else if (gameState.isStarted && !gameState.isLevelingUp && !gameState.isSynergyPopupOpen && !gameState.isPaused) {
     updateGame(deltaTime);
-  } else if (gameState.isStarted) {
+  } else if (gameState.isStarted && !gameState.isPaused) {
     updateVisualEffects(deltaTime);
   }
 
@@ -4047,8 +4829,43 @@ function endGame() {
   saveRecords(bestScore, bestTime);
   renderResultStats(bestScore, bestTime);
   levelUpScreen.classList.add("hidden");
+  clearScreen?.classList.add("hidden");
   gameOverScreen.classList.remove("hidden");
   setUiBlocking(true);
+  updatePauseUi();
+  maybeShowPermanentGuide();
+  cancelAnimationFrame(animationFrameId);
+}
+
+function clearGame() {
+  if (gameState.isGameOver || gameState.isGameCleared) {
+    return;
+  }
+
+  gameState.isGameCleared = true;
+  gameState.isGameOver = true;
+  addScreenShake(10, 0.22);
+  addEffect({
+    type: "screen-flash",
+    duration: 0.45,
+    color: "rgba(255, 212, 71, 0.18)",
+  });
+  playGameClearSound();
+  stopBgm();
+
+  const bestScore = Math.max(gameState.bestScore, gameState.score);
+  const bestTime = Math.max(gameState.bestTime, gameState.elapsedTime);
+
+  awardSoulForRun(bestScore, bestTime);
+  saveRecords(bestScore, bestTime);
+  const clearInfo = saveDifficultyClearRecord();
+
+  renderClearStats(bestScore, bestTime, clearInfo);
+  levelUpScreen.classList.add("hidden");
+  gameOverScreen.classList.add("hidden");
+  clearScreen?.classList.remove("hidden");
+  setUiBlocking(true);
+  updatePauseUi();
   cancelAnimationFrame(animationFrameId);
 }
 
@@ -4073,6 +4890,141 @@ function renderResultStats(bestScore, bestTime) {
     .join("");
 }
 
+function saveDifficultyClearRecord() {
+  const difficultyKey = gameState.selectedDifficulty;
+  const config = difficultyConfigs[difficultyKey];
+  permanentSave.difficultyUnlocks = permanentSave.difficultyUnlocks ?? createDefaultDifficultyUnlocks();
+  permanentSave.difficultyRecords = permanentSave.difficultyRecords ?? createDefaultDifficultyRecords();
+  permanentSave.difficultyRecords[difficultyKey] = permanentSave.difficultyRecords[difficultyKey] ?? createDefaultDifficultyRecords()[difficultyKey];
+
+  const record = permanentSave.difficultyRecords[difficultyKey];
+  let unlockMessage = `${config.label} 모드 클리어!`;
+  let modeUnlocked = false;
+  let clearCode = "";
+
+  record.cleared = true;
+  record.bestTime = Math.max(record.bestTime, gameState.elapsedTime);
+  record.bestScore = Math.max(record.bestScore, gameState.score);
+  record.bestKills = Math.max(record.bestKills, gameState.kills);
+
+  if (difficultyKey === "normal" && !permanentSave.difficultyUnlocks.hard) {
+    permanentSave.difficultyUnlocks.hard = true;
+    unlockMessage = "어려움 모드가 해금되었습니다!";
+    modeUnlocked = true;
+  } else if (difficultyKey === "hard" && !permanentSave.difficultyUnlocks.hell) {
+    permanentSave.difficultyUnlocks.hell = true;
+    unlockMessage = "헬모드가 해금되었습니다!";
+    modeUnlocked = true;
+  } else if (difficultyKey === "hell") {
+    clearCode = generateClearCode(difficultyKey, {
+      survivalTime: gameState.elapsedTime,
+      kills: gameState.kills,
+      score: gameState.score,
+    });
+    record.lastClearCode = clearCode;
+    gameState.clearCode = clearCode;
+    unlockMessage = "헬모드 클리어!";
+  }
+
+  gameState.clearUnlockMessage = unlockMessage;
+  savePermanentSave();
+  updatePermanentSummary();
+
+  if (modeUnlocked) {
+    playModeUnlockSound();
+  }
+
+  return {
+    unlockMessage,
+    clearCode,
+  };
+}
+
+function renderClearStats(bestScore, bestTime, clearInfo) {
+  const difficulty = difficultyConfigs[gameState.selectedDifficulty];
+  const rows = [
+    ["클리어 난이도", difficulty.label],
+    ["생존 시간", formatTime(gameState.elapsedTime)],
+    ["처치 수", gameState.kills],
+    ["최종 레벨", gameState.level],
+    ["처치한 보스 수", gameState.bossKills],
+    ["획득 Soul", gameState.earnedSoul],
+    ["총 Soul", permanentSave.soul],
+    ["최종 점수", gameState.score],
+    ["최고 생존 시간", formatTime(bestTime)],
+    ["최고 점수", bestScore],
+  ];
+
+  if (clearTitle) {
+    clearTitle.textContent = gameState.selectedDifficulty === "hell" ? "HELL MODE CLEAR!" : "CLEAR!";
+  }
+
+  if (clearMessage) {
+    clearMessage.textContent = clearInfo.unlockMessage;
+  }
+
+  if (clearStats) {
+    clearStats.innerHTML = rows
+      .map(([label, value]) => `<div class="result-row"><span>${label}</span><span>${value}</span></div>`)
+      .join("");
+  }
+
+  if (hellClearCodeBox) {
+    const isHellClear = gameState.selectedDifficulty === "hell" && Boolean(clearInfo.clearCode);
+
+    hellClearCodeBox.classList.toggle("hidden", !isHellClear);
+    if (hellClearCodeValue) hellClearCodeValue.textContent = clearInfo.clearCode;
+    if (copyClearCodeMessage) copyClearCodeMessage.textContent = "서버 자동 지급이 아닌 수동 확인용 코드입니다.";
+  }
+}
+
+function generateClearCode(difficultyKey, stats) {
+  // 정적 GitHub Pages 게임이라 서버 검증은 없다. 이 코드는 캐주얼 이벤트용 수동 확인 보조 수단이다.
+  const now = new Date();
+  const date =
+    String(now.getFullYear()) +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    String(now.getDate()).padStart(2, "0");
+  const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const timePart = Math.floor(stats.survivalTime);
+  const killPart = Math.floor(stats.kills);
+  const payload = `${difficultyKey}-${date}-${timePart}-${killPart}-${stats.score}-${random}`;
+  const checksum = Array.from(payload)
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0)
+    .toString(36)
+    .toUpperCase()
+    .slice(-2)
+    .padStart(2, "0");
+
+  return `HELL-${date}-T${timePart}-K${killPart}-${random}-${checksum}`;
+}
+
+function copyClearCode() {
+  const code = gameState?.clearCode || permanentSave.difficultyRecords?.hell?.lastClearCode || "";
+
+  if (!code) {
+    if (copyClearCodeMessage) copyClearCodeMessage.textContent = "복사할 인증 코드가 없습니다.";
+    return;
+  }
+
+  const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : null;
+
+  if (clipboard?.writeText) {
+    clipboard.writeText(code)
+      .then(() => {
+        if (copyClearCodeMessage) copyClearCodeMessage.textContent = "인증 코드가 복사되었습니다.";
+      })
+      .catch(() => {
+        if (copyClearCodeMessage) copyClearCodeMessage.textContent = "복사 실패: 코드를 직접 길게 눌러 복사해주세요.";
+      });
+    return;
+  }
+
+  if (copyClearCodeMessage) {
+    copyClearCodeMessage.textContent = "코드를 직접 선택해서 복사해주세요.";
+  }
+}
+
 function getTopDamageSource() {
   const entries = Object.entries(gameState.weaponDamage);
 
@@ -4091,6 +5043,9 @@ function renderPermanentUpgradeMenu(message = "") {
     permanentMessage.textContent = message;
   }
 
+  newRunPermanentButton?.classList.toggle("hidden", permanentMenuReadOnly);
+  resetSaveButton?.classList.toggle("hidden", permanentMenuReadOnly);
+
   if (!permanentUpgradeList) {
     return;
   }
@@ -4101,7 +5056,7 @@ function renderPermanentUpgradeMenu(message = "") {
     const level = getPermanentLevel(id);
     const isMax = level >= definition.maxLevel;
     const cost = isMax ? 0 : getPermanentUpgradeCost(definition, level);
-    const canBuy = !isMax && permanentSave.soul >= cost;
+    const canBuy = !permanentMenuReadOnly && !isMax && permanentSave.soul >= cost;
     const card = document.createElement("article");
 
     card.className = "permanent-card";
@@ -4116,7 +5071,7 @@ function renderPermanentUpgradeMenu(message = "") {
       <div class="permanent-card-footer">
         <span>${isMax ? "MAX" : `비용: ${cost} Soul`}</span>
         <button type="button" data-upgrade-id="${id}" ${canBuy ? "" : "disabled"}>
-          ${isMax ? "MAX" : "구매"}
+          ${isMax ? "MAX" : permanentMenuReadOnly ? "보기 전용" : "구매"}
         </button>
       </div>
     `;
@@ -4127,8 +5082,9 @@ function renderPermanentUpgradeMenu(message = "") {
   }
 }
 
-function openPermanentUpgradeMenu() {
-  renderPermanentUpgradeMenu();
+function openPermanentUpgradeMenu(options = {}) {
+  permanentMenuReadOnly = Boolean(options.readOnly);
+  renderPermanentUpgradeMenu(options.message ?? "");
   permanentUpgradeScreen?.classList.remove("hidden");
   setUiBlocking(true);
   resetJoystick();
@@ -4136,11 +5092,19 @@ function openPermanentUpgradeMenu() {
 
 function closePermanentUpgradeMenu() {
   permanentUpgradeScreen?.classList.add("hidden");
-  const shouldBlock = !gameState?.isStarted || gameState?.isLevelingUp || gameState?.isGameOver;
+  const clearOpen = clearScreen && !clearScreen.classList.contains("hidden");
+  const pauseOpen = pauseScreen && !pauseScreen.classList.contains("hidden");
+  const shouldBlock = !gameState?.isStarted || gameState?.isLevelingUp || gameState?.isGameOver || clearOpen || pauseOpen;
+  permanentMenuReadOnly = false;
   setUiBlocking(shouldBlock);
 }
 
 function buyPermanentUpgrade(id) {
+  if (permanentMenuReadOnly) {
+    renderPermanentUpgradeMenu("영구 강화 구매는 게임오버 후 또는 메인 메뉴에서 사용할 수 있습니다.");
+    return;
+  }
+
   const definition = permanentUpgradeDefinitions[id];
 
   if (!definition) {
@@ -4179,6 +5143,7 @@ function resetPermanentSave() {
   }
 
   permanentSave = createDefaultPermanentSave();
+  selectedDifficulty = "normal";
 
   try {
     window.localStorage?.removeItem(SAVE_KEY);
@@ -4239,7 +5204,7 @@ function getScaledRadius(baseRadius, kind, typeKey = "") {
     scale = balance.enemyScale;
     minRadius = balance.minEnemyRadius ?? 0;
   } else if (kind === "boss") {
-    if (typeKey === "big") scale = balance.bigBossScale;
+    if (typeKey === "big" || typeKey === "final") scale = balance.bigBossScale;
     else if (typeKey === "mid") scale = balance.midBossScale;
     else scale = balance.miniBossScale;
     minRadius = balance.minBossRadius ?? 0;
@@ -4304,7 +5269,7 @@ function resetJoystick() {
 function updateJoystickFromTouch(touch) {
   const collectionOpen = synergyCollectionScreen && !synergyCollectionScreen.classList.contains("hidden");
 
-  if (!joystick || gameState?.isLevelingUp || gameState?.isGameOver || gameState?.isSynergyPopupOpen || collectionOpen) {
+  if (!joystick || gameState?.isLevelingUp || gameState?.isGameOver || gameState?.isSynergyPopupOpen || gameState?.isPaused || collectionOpen) {
     resetJoystick();
     return;
   }
@@ -4359,6 +5324,12 @@ function handleJoystickEnd(event) {
 }
 
 window.addEventListener("keydown", (event) => {
+  if ((event.code === "Escape" || event.code === "KeyP") && !event.repeat) {
+    event.preventDefault();
+    togglePause();
+    return;
+  }
+
   keys.add(event.code);
 });
 
@@ -4371,11 +5342,27 @@ window.addEventListener("resize", handleResize);
 addButtonClick(startButton, startGame);
 addButtonClick(soundStartButton, toggleSound);
 addButtonClick(soundHudButton, toggleSound);
+addButtonClick(pauseButton, togglePause);
+addButtonClick(resumeButton, resumeGame);
+addButtonClick(pausePermanentButton, openPermanentFromPause);
+addButtonClick(pauseSynergyButton, openSynergyCollection);
+addButtonClick(pauseSoundButton, toggleSound);
+addButtonClick(pauseMainMenuButton, goToMainMenu);
+addButtonClick(difficultyNormalButton, () => selectDifficulty("normal"));
+addButtonClick(difficultyHardButton, () => selectDifficulty("hard"));
+addButtonClick(difficultyHellButton, () => selectDifficulty("hell"));
 addButtonClick(rerollButton, rerollUpgrades);
 addButtonClick(restartButton, restartGame);
+addButtonClick(clearRestartButton, restartGame);
+addButtonClick(clearPermanentButton, openPermanentUpgradeMenu);
+addButtonClick(clearSynergyButton, openSynergyCollection);
+addButtonClick(clearMainMenuButton, goToMainMenu);
+addButtonClick(copyClearCodeButton, copyClearCode);
 addButtonClick(openPermanentButton, openPermanentUpgradeMenu);
 addButtonClick(openPermanentGameOverButton, openPermanentUpgradeMenu);
 addButtonClick(mainMenuButton, goToMainMenu);
+addButtonClick(guidePermanentButton, openPermanentFromGuide);
+addButtonClick(guideLaterButton, () => closePermanentGuide(true));
 addButtonClick(closePermanentButton, closePermanentUpgradeMenu);
 addButtonClick(newRunPermanentButton, startGame);
 addButtonClick(resetSaveButton, resetPermanentSave);

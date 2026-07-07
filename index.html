@@ -12,6 +12,7 @@
       <p class="mobile-orientation-hint">모바일은 가로모드 플레이를 추천합니다.</p>
 
       <button id="soundHudButton" class="sound-button sound-hud" type="button">Sound: ON</button>
+      <button id="pauseButton" class="pause-button hidden" type="button" aria-label="일시정지">⏸</button>
 
       <section id="startScreen" class="start-screen" aria-live="polite">
         <div class="start-panel">
@@ -19,9 +20,22 @@
           <p>모바일은 가로모드 플레이를 추천합니다.</p>
           <p class="save-note">성장 데이터는 기기/브라우저별로 따로 유지됩니다.</p>
           <p class="soul-summary">Soul <span id="startSoulValue">0</span></p>
+          <div class="difficulty-select" aria-label="난이도 선택">
+            <p class="difficulty-title">난이도 선택</p>
+            <div class="difficulty-options">
+              <button id="difficultyNormalButton" type="button">노멀</button>
+              <button id="difficultyHardButton" type="button">어려움 🔒</button>
+              <button id="difficultyHellButton" type="button">헬 🔒</button>
+            </div>
+            <p id="difficultyMessage" class="difficulty-message">노멀 모드 선택됨</p>
+          </div>
           <div class="start-actions">
             <button id="startButton" type="button">Start</button>
-            <button id="openPermanentButton" type="button">영구 강화</button>
+            <button id="openPermanentButton" class="permanent-cta" type="button">
+              <span>⚡ 영구 강화</span>
+              <small>보유 Soul: <span id="startSoulCtaValue">0</span></small>
+              <em id="startPermanentBadge" class="hidden">강화 가능!</em>
+            </button>
             <button id="openSynergyCollectionButton" type="button">히든 시너지</button>
             <button id="soundStartButton" class="sound-button" type="button">Sound: ON</button>
           </div>
@@ -43,14 +57,62 @@
         <button id="rerollButton" class="reroll-button hidden" type="button">재선택</button>
       </section>
 
+      <section id="pauseScreen" class="pause-screen hidden" aria-live="polite">
+        <div class="pause-panel">
+          <h1>일시정지</h1>
+          <p>게임이 멈춰 있습니다.</p>
+          <div class="pause-actions">
+            <button id="resumeButton" type="button">계속하기</button>
+            <button id="pausePermanentButton" type="button">영구 강화 보기</button>
+            <button id="pauseSynergyButton" type="button">히든 시너지</button>
+            <button id="pauseSoundButton" type="button">Sound: ON</button>
+            <button id="pauseMainMenuButton" class="plain-button" type="button">메인 메뉴</button>
+          </div>
+          <p class="save-note">영구 강화 구매는 게임오버 후 또는 메인 메뉴에서 사용할 수 있습니다.</p>
+        </div>
+      </section>
+
+      <section id="clearScreen" class="game-clear hidden" aria-live="polite">
+        <div class="result-panel clear-panel">
+          <h1 id="clearTitle">CLEAR!</h1>
+          <p id="clearMessage" class="clear-message">클리어!</p>
+          <div id="clearStats" class="result-stats"></div>
+          <div id="hellClearCodeBox" class="hell-code-box hidden">
+            <p>스타벅스 아메리카노 기프티콘 이벤트 참여 가능</p>
+            <p>아래 인증 코드와 클리어 화면을 캡처해서 제출해주세요.</p>
+            <strong id="hellClearCodeValue">HELL-CODE</strong>
+            <button id="copyClearCodeButton" type="button">인증 코드 복사</button>
+            <p id="copyClearCodeMessage" class="save-note"></p>
+          </div>
+          <div class="result-actions">
+            <button id="clearRestartButton" type="button">다시 시작</button>
+            <button id="clearPermanentButton" type="button">영구 강화</button>
+            <button id="clearSynergyButton" type="button">히든 시너지</button>
+            <button id="clearMainMenuButton" type="button">메인 화면</button>
+          </div>
+        </div>
+      </section>
+
       <section id="gameOverScreen" class="game-over hidden" aria-live="polite">
         <div class="result-panel">
           <h1>생존 결과</h1>
           <div id="resultStats" class="result-stats"></div>
           <div class="result-actions">
             <button id="restartButton" type="button">다시 시작</button>
-            <button id="openPermanentGameOverButton" type="button">영구 강화</button>
+            <button id="openPermanentGameOverButton" class="permanent-gameover-button" type="button">⚡ 영구 강화하기</button>
             <button id="mainMenuButton" type="button">메인 화면</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="permanentGuideScreen" class="guide-screen hidden" aria-live="polite">
+        <div class="guide-panel">
+          <h1>Soul을 획득했습니다!</h1>
+          <p>Soul은 영구 강화에서 사용할 수 있습니다.</p>
+          <p>강화하면 다음 판에서 더 강해집니다.</p>
+          <div class="guide-actions">
+            <button id="guidePermanentButton" type="button">영구 강화 보기</button>
+            <button id="guideLaterButton" class="plain-button" type="button">나중에</button>
           </div>
         </div>
       </section>
