@@ -4,8 +4,6 @@ const ctx = canvas.getContext("2d");
 const gameShell = document.querySelector ? document.querySelector(".game-shell") : null;
 const startScreen = document.getElementById("startScreen");
 const startButton = document.getElementById("startButton");
-const soundStartButton = document.getElementById("soundStartButton");
-const soundHudButton = document.getElementById("soundHudButton");
 const pauseButton = document.getElementById("pauseButton");
 const pauseScreen = document.getElementById("pauseScreen");
 const resumeButton = document.getElementById("resumeButton");
@@ -51,6 +49,9 @@ const clearRestartButton = document.getElementById("clearRestartButton");
 const clearPermanentButton = document.getElementById("clearPermanentButton");
 const clearSynergyButton = document.getElementById("clearSynergyButton");
 const clearMainMenuButton = document.getElementById("clearMainMenuButton");
+const returnMenuConfirmScreen = document.getElementById("returnMenuConfirmScreen");
+const confirmReturnMenuButton = document.getElementById("confirmReturnMenuButton");
+const cancelReturnMenuButton = document.getElementById("cancelReturnMenuButton");
 const joystick = document.getElementById("joystick");
 const joystickKnob = document.getElementById("joystickKnob");
 const startSoulValue = document.getElementById("startSoulValue");
@@ -977,6 +978,8 @@ function resetGame(startImmediately = hasStartedGame) {
     currentUpgrades: [],
     earnedSoul: 0,
     soulAwarded: false,
+    runRewardClaimed: false,
+    returnedToMenu: false,
     upgradeCounts: {},
     selectedUpgradeCount: 0,
     selectedLegendaryCount: 0,
@@ -1130,6 +1133,7 @@ function resetGame(startImmediately = hasStartedGame) {
   gameOverScreen.classList.add("hidden");
   clearScreen?.classList.add("hidden");
   pauseScreen?.classList.add("hidden");
+  returnMenuConfirmScreen?.classList.add("hidden");
   permanentGuideScreen?.classList.add("hidden");
   permanentUpgradeScreen?.classList.add("hidden");
   synergyPopupScreen?.classList.add("hidden");
@@ -1479,7 +1483,9 @@ function canBuyAnyPermanentUpgrade() {
 }
 
 function awardSoulForRun(bestScore, bestTime) {
-  if (gameState.soulAwarded) {
+  if (gameState.soulAwarded || gameState.runRewardClaimed) {
+    gameState.soulAwarded = true;
+    gameState.runRewardClaimed = true;
     return gameState.earnedSoul;
   }
 
@@ -1487,6 +1493,7 @@ function awardSoulForRun(bestScore, bestTime) {
 
   gameState.earnedSoul = earnedSoul;
   gameState.soulAwarded = true;
+  gameState.runRewardClaimed = true;
   permanentSave.soul += earnedSoul;
   permanentSave.bestScore = Math.max(permanentSave.bestScore, bestScore);
   permanentSave.bestSurvivalTime = Math.max(permanentSave.bestSurvivalTime, bestTime);
@@ -1497,6 +1504,34 @@ function awardSoulForRun(bestScore, bestTime) {
   updatePermanentSummary();
 
   return earnedSoul;
+}
+
+function claimRunSoulReward(reason = "gameOver") {
+  if (!gameState) {
+    return {
+      earnedSoul: 0,
+      bestScore: permanentSave.bestScore,
+      bestTime: permanentSave.bestSurvivalTime,
+      reason,
+    };
+  }
+
+  const bestScore = Math.max(gameState.bestScore, gameState.score);
+  const bestTime = Math.max(gameState.bestTime, gameState.elapsedTime);
+  const earnedSoul = awardSoulForRun(bestScore, bestTime);
+
+  if (reason === "returnToMenu") {
+    gameState.returnedToMenu = true;
+  }
+
+  saveRecords(bestScore, bestTime);
+
+  return {
+    earnedSoul,
+    bestScore,
+    bestTime,
+    reason,
+  };
 }
 
 function updatePermanentSummary() {
@@ -1558,8 +1593,6 @@ function saveSoundPreference() {
 function updateSoundButtons() {
   const text = `Sound: ${soundEnabled ? "ON" : "OFF"}`;
 
-  if (soundStartButton) soundStartButton.textContent = text;
-  if (soundHudButton) soundHudButton.textContent = text;
   if (pauseSoundButton) pauseSoundButton.textContent = text;
 }
 
@@ -1628,7 +1661,8 @@ function canPauseGame() {
   const blockingOverlayOpen =
     (permanentUpgradeScreen && !permanentUpgradeScreen.classList.contains("hidden")) ||
     (synergyCollectionScreen && !synergyCollectionScreen.classList.contains("hidden")) ||
-    (permanentGuideScreen && !permanentGuideScreen.classList.contains("hidden"));
+    (permanentGuideScreen && !permanentGuideScreen.classList.contains("hidden")) ||
+    (returnMenuConfirmScreen && !returnMenuConfirmScreen.classList.contains("hidden"));
 
   return !blockingOverlayOpen;
 }
@@ -2649,14 +2683,7 @@ function addFloatingText(text, x, y, color = "#ffffff", size = 18, duration = 0.
 }
 
 function showBanner(text, color = "#ffd447") {
-  floatingTexts.push({
-    text,
-    x: window.innerWidth / 2,
-    y: 84,
-    color,
-    size: 34,
-    duration: 2,
-    age: 0,
+  addFloatingText(text, window.innerWidth / 2, 84, color, 34, 2, {
     vy: -8,
     align: "center",
   });
@@ -5022,12 +5049,9 @@ function endGame() {
   playGameOverSound();
   stopBgm();
 
-  const bestScore = Math.max(gameState.bestScore, gameState.score);
-  const bestTime = Math.max(gameState.bestTime, gameState.elapsedTime);
+  const rewardInfo = claimRunSoulReward("gameOver");
 
-  awardSoulForRun(bestScore, bestTime);
-  saveRecords(bestScore, bestTime);
-  renderResultStats(bestScore, bestTime);
+  renderResultStats(rewardInfo.bestScore, rewardInfo.bestTime);
   levelUpScreen.classList.add("hidden");
   clearScreen?.classList.add("hidden");
   gameOverScreen.classList.remove("hidden");
@@ -5053,14 +5077,11 @@ function clearGame() {
   playGameClearSound();
   stopBgm();
 
-  const bestScore = Math.max(gameState.bestScore, gameState.score);
-  const bestTime = Math.max(gameState.bestTime, gameState.elapsedTime);
+  const rewardInfo = claimRunSoulReward("clear");
 
-  awardSoulForRun(bestScore, bestTime);
-  saveRecords(bestScore, bestTime);
   const clearInfo = saveDifficultyClearRecord();
 
-  renderClearStats(bestScore, bestTime, clearInfo);
+  renderClearStats(rewardInfo.bestScore, rewardInfo.bestTime, clearInfo);
   levelUpScreen.classList.add("hidden");
   gameOverScreen.classList.add("hidden");
   clearScreen?.classList.remove("hidden");
@@ -5379,9 +5400,60 @@ function resetPermanentSave() {
   renderPermanentUpgradeMenu("저장 데이터가 초기화되었습니다.");
 }
 
-function goToMainMenu() {
+function isActiveRunInProgress() {
+  return Boolean(gameState?.isStarted && !gameState.isGameOver && !gameState.isGameCleared);
+}
+
+function openReturnMenuConfirm() {
+  if (!isActiveRunInProgress()) {
+    goToMainMenuImmediately();
+    return;
+  }
+
+  if (!gameState.isPaused) {
+    pauseGame("returnToMenu");
+  } else {
+    renderPauseMenu();
+    setUiBlocking(true);
+  }
+
+  returnMenuConfirmScreen?.classList.remove("hidden");
+  resetJoystick();
+}
+
+function cancelReturnToMenu() {
+  returnMenuConfirmScreen?.classList.add("hidden");
+
+  if (gameState?.isPaused) {
+    setUiBlocking(true);
+    updatePauseUi();
+  }
+}
+
+function confirmReturnToMenu() {
+  if (isActiveRunInProgress()) {
+    claimRunSoulReward("returnToMenu");
+    gameState.isGameOver = true;
+    gameState.isPaused = false;
+  }
+
+  goToMainMenuImmediately();
+}
+
+function goToMainMenuImmediately() {
+  returnMenuConfirmScreen?.classList.add("hidden");
   hasStartedGame = false;
+  stopBgm();
   resetGame(false);
+}
+
+function goToMainMenu() {
+  if (isActiveRunInProgress()) {
+    openReturnMenuConfirm();
+    return;
+  }
+
+  goToMainMenuImmediately();
 }
 
 function formatTime(seconds) {
@@ -5556,8 +5628,6 @@ window.addEventListener("keyup", (event) => {
 window.addEventListener("resize", handleResize);
 
 addButtonClick(startButton, startGame);
-addButtonClick(soundStartButton, toggleSound);
-addButtonClick(soundHudButton, toggleSound);
 addButtonClick(pauseButton, togglePause);
 addButtonClick(resumeButton, resumeGame);
 addButtonClick(pausePermanentButton, openPermanentFromPause);
@@ -5586,6 +5656,8 @@ addButtonClick(resetSaveButton, resetPermanentSave);
 addButtonClick(openSynergyCollectionButton, openSynergyCollection);
 addButtonClick(closeSynergyCollectionButton, closeSynergyCollection);
 addButtonClick(closeSynergyPopupButton, closeSynergyPopup);
+addButtonClick(confirmReturnMenuButton, confirmReturnToMenu);
+addButtonClick(cancelReturnMenuButton, cancelReturnToMenu);
 
 for (const button of pauseTabButtons) {
   addButtonClick(button, () => setPauseTab(button.dataset.pauseTab));

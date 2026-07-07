@@ -154,7 +154,8 @@ body {
 .synergy-popup,
 .synergy-collection,
 .pause-screen,
-.guide-screen {
+.guide-screen,
+.confirm-screen {
   position: absolute;
   inset: 0;
   z-index: 44;
@@ -173,13 +174,61 @@ body {
   z-index: 49;
 }
 
-.start-panel {
+.confirm-screen {
+  z-index: 50;
+}
+
+.start-panel,
+.confirm-panel {
   width: min(460px, calc(100vw - 32px));
   padding: 28px;
   border: 1px solid rgba(246, 242, 232, 0.18);
   border-radius: 8px;
   background: rgba(17, 18, 22, 0.88);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.confirm-panel {
+  text-align: center;
+}
+
+.confirm-panel h1 {
+  margin: 0 0 12px;
+  color: #ffd447;
+  font-size: clamp(26px, 6vw, 40px);
+  line-height: 1.1;
+}
+
+.confirm-panel p {
+  margin: 0 0 18px;
+  color: #d8dde6;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.confirm-actions button {
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #ffd447;
+  color: #151515;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.confirm-actions .plain-button {
+  border: 1px solid rgba(246, 242, 232, 0.18);
+  background: rgba(246, 242, 232, 0.08);
+  color: #f6f2e8;
 }
 
 .result-panel {
@@ -882,8 +931,7 @@ body {
   margin-top: 24px;
 }
 
-.start-actions button,
-.sound-button {
+.start-actions button {
   min-height: 48px;
   padding: 12px 18px;
   border: 0;
@@ -945,22 +993,6 @@ body {
   box-shadow: 0 0 24px rgba(255, 212, 71, 0.16);
 }
 
-.sound-button {
-  border: 1px solid rgba(246, 242, 232, 0.24);
-  background: rgba(17, 18, 22, 0.78);
-  color: #f6f2e8;
-}
-
-.sound-hud {
-  position: absolute;
-  right: 14px;
-  top: 14px;
-  z-index: 21;
-  min-height: 40px;
-  padding: 8px 12px;
-  font-size: 13px;
-}
-
 .pause-button {
   position: absolute;
   right: 14px;
@@ -979,11 +1011,6 @@ body {
 }
 
 .pause-button.is-paused {
-  border-color: #ffd447;
-  color: #ffd447;
-}
-
-.sound-button:hover {
   border-color: #ffd447;
   color: #ffd447;
 }
@@ -1312,8 +1339,7 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .start-actions button,
-  .sound-button {
+  .start-actions button {
     width: 100%;
   }
 
@@ -1370,13 +1396,6 @@ body {
   .plain-button,
   .reroll-button {
     min-height: 48px;
-  }
-
-  .sound-hud {
-    right: 8px;
-    top: auto;
-    bottom: max(162px, calc(env(safe-area-inset-bottom) + 162px));
-    width: auto;
   }
 
   .guide-panel {

@@ -121,28 +121,8 @@ const mockContext = {
 };
 
 const elements = new Map();
-const requiredIds = [
-  "gameCanvas",
-  "startScreen",
-  "startButton",
-  "soundStartButton",
-  "soundHudButton",
-  "hpValue",
-  "levelValue",
-  "expValue",
-  "scoreValue",
-  "timeValue",
-  "levelUpScreen",
-  "upgradeChoices",
-  "rerollButton",
-  "gameOverScreen",
-  "resultStats",
-  "joystick",
-  "joystickKnob",
-  "finalScore",
-  "finalTime",
-  "restartButton",
-];
+const requiredIds = [...fs.readFileSync("index.html", "utf8").matchAll(/id="([^"]+)"/g)]
+  .map((match) => match[1]);
 
 for (const id of requiredIds) {
   elements.set(id, new MockElement(id));

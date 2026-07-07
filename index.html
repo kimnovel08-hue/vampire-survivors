@@ -10,7 +10,6 @@
     <main class="game-shell">
       <canvas id="gameCanvas" aria-label="2D survival game screen"></canvas>
 
-      <button id="soundHudButton" class="sound-button sound-hud" type="button">Sound: ON</button>
       <button id="pauseButton" class="pause-button hidden" type="button" aria-label="일시정지">⏸</button>
 
       <section id="startScreen" class="start-screen" aria-live="polite">
@@ -36,7 +35,6 @@
               <em id="startPermanentBadge" class="hidden">강화 가능!</em>
             </button>
             <button id="openSynergyCollectionButton" type="button">히든 시너지</button>
-            <button id="soundStartButton" class="sound-button" type="button">Sound: ON</button>
           </div>
         </div>
       </section>
@@ -174,6 +172,17 @@
           <div class="permanent-actions">
             <button id="newRunPermanentButton" type="button">새 게임 시작</button>
             <button id="resetSaveButton" class="danger-button" type="button">저장 초기화</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="returnMenuConfirmScreen" class="confirm-screen hidden" aria-live="polite">
+        <div class="confirm-panel">
+          <h1>메인 메뉴로 이동할까요?</h1>
+          <p>현재 진행 중인 판은 종료되지만, 지금까지 획득한 Soul은 저장됩니다.</p>
+          <div class="confirm-actions">
+            <button id="confirmReturnMenuButton" type="button">나가기</button>
+            <button id="cancelReturnMenuButton" class="plain-button" type="button">취소</button>
           </div>
         </div>
       </section>
