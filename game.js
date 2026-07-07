@@ -31,6 +31,7 @@ const closePermanentButton = document.getElementById("closePermanentButton");
 const newRunPermanentButton = document.getElementById("newRunPermanentButton");
 const resetSaveButton = document.getElementById("resetSaveButton");
 
+// ===== 설정/상수 =====
 const keys = new Set();
 const TAU = Math.PI * 2;
 const RECORD_KEY = "neon-survivor-records-v2";
@@ -47,6 +48,7 @@ const assetPaths = {
 };
 const loadedImages = {};
 
+// ===== 실행 중 상태 =====
 let hasStartedGame = false;
 let soundEnabled = loadSoundPreference();
 let audioContext = null;
@@ -75,7 +77,6 @@ const desktopBalance = {
   midBossScale: 1,
   bigBossScale: 1,
   playerSpeedMultiplier: 1,
-  upgradeUiScale: 1,
   joystickDeadzone: 0,
 };
 
@@ -87,7 +88,6 @@ const mobileBalance = {
   midBossScale: 0.8,
   bigBossScale: 0.8,
   playerSpeedMultiplier: 0.7,
-  upgradeUiScale: 0.75,
   joystickDeadzone: 0.08,
   minPlayerRadius: 10,
   minEnemyRadius: 9,
@@ -334,6 +334,7 @@ let effects;
 let lightningLines;
 let lastTime;
 let animationFrameId;
+let resizeFrameId = null;
 let nextEnemyId;
 let nextBossId;
 let permanentSave = loadPermanentSave();
@@ -720,6 +721,18 @@ function resizeCanvas() {
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 }
 
+function handleResize() {
+  if (resizeFrameId !== null) {
+    cancelAnimationFrame(resizeFrameId);
+  }
+
+  resizeFrameId = requestAnimationFrame(() => {
+    resizeFrameId = null;
+    resizeCanvas();
+    applyResponsiveEntityScales();
+  });
+}
+
 function resetGame(startImmediately = hasStartedGame) {
   const records = loadRecords();
 
@@ -933,6 +946,7 @@ function setUiBlocking(isBlocking) {
   gameShell?.classList.toggle("ui-blocking", isBlocking);
 }
 
+// ===== 저장 시스템 =====
 function createDefaultPermanentSave() {
   const permanentUpgrades = {};
 
@@ -941,6 +955,7 @@ function createDefaultPermanentSave() {
   }
 
   return {
+    version: 1,
     soul: 0,
     bestScore: 0,
     bestSurvivalTime: 0,
@@ -960,7 +975,7 @@ function loadLegacyRecords() {
   }
 }
 
-function normalizePermanentSave(data) {
+function migrateSaveData(data) {
   const defaults = createDefaultPermanentSave();
   const source = data && typeof data === "object" ? data : {};
   const upgrades = source.permanentUpgrades && typeof source.permanentUpgrades === "object"
@@ -972,6 +987,7 @@ function normalizePermanentSave(data) {
     defaults.permanentUpgrades[key] = clamp(Math.floor(Number.isFinite(level) ? level : 0), 0, definition.maxLevel);
   }
 
+  defaults.version = 1;
   defaults.soul = Math.max(0, Math.floor(Number(source.soul ?? defaults.soul) || 0));
   defaults.bestScore = Math.max(0, Math.floor(Number(source.bestScore ?? defaults.bestScore) || 0));
   defaults.bestSurvivalTime = Math.max(0, Number(source.bestSurvivalTime ?? defaults.bestSurvivalTime) || 0);
@@ -987,7 +1003,7 @@ function loadPermanentSave() {
 
   try {
     const raw = window.localStorage?.getItem(SAVE_KEY);
-    const save = normalizePermanentSave(raw ? JSON.parse(raw) : null);
+    const save = migrateSaveData(raw ? JSON.parse(raw) : null);
 
     save.bestScore = Math.max(save.bestScore, Number(legacyRecords.bestScore ?? 0) || 0);
     save.bestSurvivalTime = Math.max(save.bestSurvivalTime, Number(legacyRecords.bestTime ?? 0) || 0);
@@ -1144,6 +1160,7 @@ function updateSoundButtons() {
   if (soundHudButton) soundHudButton.textContent = text;
 }
 
+// ===== 사운드 시스템 =====
 function initAudioContext() {
   if (!soundEnabled || audioContext) {
     return;
@@ -1340,6 +1357,7 @@ function stopBgm() {
   }
 }
 
+// ===== 게임 시작/재시작 =====
 function startGame() {
   hasStartedGame = true;
   unlockAudio();
@@ -1878,6 +1896,7 @@ function chainLightningFrom(x, y, damage) {
   }
 }
 
+// ===== 업데이트/충돌 =====
 function updatePlayer(deltaTime) {
   let moveX = 0;
   let moveY = 0;
@@ -2685,6 +2704,7 @@ function getAvailableUpgrades() {
   });
 }
 
+// ===== 증강 선택 UI =====
 function renderUpgradeChoices() {
   upgradeChoices.innerHTML = "";
   levelUpScreen.classList.toggle(
@@ -2804,6 +2824,7 @@ function updateGame(deltaTime) {
   updateHud();
 }
 
+// ===== 그리기 =====
 function drawBackground() {
   ctx.fillStyle = "#17181d";
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
@@ -3464,6 +3485,7 @@ function getTopDamageSource() {
   return entries.sort((a, b) => b[1] - a[1])[0][0];
 }
 
+// ===== 결과/영구 강화 UI =====
 function renderPermanentUpgradeMenu(message = "") {
   updatePermanentSummary();
 
@@ -3665,6 +3687,11 @@ function applyResponsiveEntityScales() {
   }
 }
 
+// ===== 입력 처리 =====
+function addButtonClick(element, handler) {
+  element?.addEventListener("click", handler);
+}
+
 function resetJoystick() {
   joystickActive = false;
   joystickDeltaX = 0;
@@ -3738,22 +3765,19 @@ window.addEventListener("keyup", (event) => {
   keys.delete(event.code);
 });
 
-window.addEventListener("resize", () => {
-  resizeCanvas();
-  applyResponsiveEntityScales();
-});
+window.addEventListener("resize", handleResize);
 
-startButton?.addEventListener("click", startGame);
-soundStartButton?.addEventListener("click", toggleSound);
-soundHudButton?.addEventListener("click", toggleSound);
-rerollButton.addEventListener("click", rerollUpgrades);
-restartButton.addEventListener("click", restartGame);
-openPermanentButton?.addEventListener("click", openPermanentUpgradeMenu);
-openPermanentGameOverButton?.addEventListener("click", openPermanentUpgradeMenu);
-mainMenuButton?.addEventListener("click", goToMainMenu);
-closePermanentButton?.addEventListener("click", closePermanentUpgradeMenu);
-newRunPermanentButton?.addEventListener("click", startGame);
-resetSaveButton?.addEventListener("click", resetPermanentSave);
+addButtonClick(startButton, startGame);
+addButtonClick(soundStartButton, toggleSound);
+addButtonClick(soundHudButton, toggleSound);
+addButtonClick(rerollButton, rerollUpgrades);
+addButtonClick(restartButton, restartGame);
+addButtonClick(openPermanentButton, openPermanentUpgradeMenu);
+addButtonClick(openPermanentGameOverButton, openPermanentUpgradeMenu);
+addButtonClick(mainMenuButton, goToMainMenu);
+addButtonClick(closePermanentButton, closePermanentUpgradeMenu);
+addButtonClick(newRunPermanentButton, startGame);
+addButtonClick(resetSaveButton, resetPermanentSave);
 
 if (joystick) {
   joystick.addEventListener("touchstart", handleJoystickStart, { passive: false });
