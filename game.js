@@ -17,6 +17,13 @@ const pauseRunStats = document.getElementById("pauseRunStats");
 const pauseBuildSummary = document.getElementById("pauseBuildSummary");
 const pauseOwnedUpgrades = document.getElementById("pauseOwnedUpgrades");
 const pauseActiveSynergies = document.getElementById("pauseActiveSynergies");
+const pauseSynergyTabButton = document.getElementById("pauseSynergyTabButton");
+const pauseTabButtons = typeof document.querySelectorAll === "function"
+  ? Array.from(document.querySelectorAll("[data-pause-tab]"))
+  : [];
+const pauseTabPanels = typeof document.querySelectorAll === "function"
+  ? Array.from(document.querySelectorAll("[data-pause-tab-panel]"))
+  : [];
 const difficultyNormalButton = document.getElementById("difficultyNormalButton");
 const difficultyHardButton = document.getElementById("difficultyHardButton");
 const difficultyHellButton = document.getElementById("difficultyHellButton");
@@ -532,6 +539,7 @@ let nextEnemyId;
 let nextBossId;
 let permanentSave = loadPermanentSave();
 let selectedDifficulty = "normal";
+let activePauseTab = "summary";
 
 const upgrades = [
   {
@@ -1644,6 +1652,7 @@ function pauseGame(reason = "manual") {
 
   gameState.isPaused = true;
   gameState.pauseReason = reason;
+  activePauseTab = "summary";
   renderPauseMenu();
   pauseScreen?.classList.remove("hidden");
   setUiBlocking(true);
@@ -1680,6 +1689,22 @@ function renderPauseMenu() {
   renderCurrentBuildSummary();
   renderOwnedUpgrades();
   renderActiveSynergies();
+  setPauseTab(activePauseTab);
+}
+
+function setPauseTab(tabId) {
+  const nextTab = ["summary", "upgrades", "synergies"].includes(tabId) ? tabId : "summary";
+  activePauseTab = nextTab;
+
+  for (const button of pauseTabButtons) {
+    const isActive = button.dataset.pauseTab === nextTab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute?.("aria-selected", String(isActive));
+  }
+
+  for (const panel of pauseTabPanels) {
+    panel.classList.toggle("is-active", panel.dataset.pauseTabPanel === nextTab);
+  }
 }
 
 function renderPauseRunStats() {
@@ -5537,6 +5562,7 @@ addButtonClick(pauseButton, togglePause);
 addButtonClick(resumeButton, resumeGame);
 addButtonClick(pausePermanentButton, openPermanentFromPause);
 addButtonClick(pauseSynergyButton, openSynergyCollection);
+addButtonClick(pauseSynergyTabButton, openSynergyCollection);
 addButtonClick(pauseSoundButton, toggleSound);
 addButtonClick(pauseMainMenuButton, goToMainMenu);
 addButtonClick(difficultyNormalButton, () => selectDifficulty("normal"));
@@ -5560,6 +5586,10 @@ addButtonClick(resetSaveButton, resetPermanentSave);
 addButtonClick(openSynergyCollectionButton, openSynergyCollection);
 addButtonClick(closeSynergyCollectionButton, closeSynergyCollection);
 addButtonClick(closeSynergyPopupButton, closeSynergyPopup);
+
+for (const button of pauseTabButtons) {
+  addButtonClick(button, () => setPauseTab(button.dataset.pauseTab));
+}
 
 if (joystick) {
   joystick.addEventListener("touchstart", handleJoystickStart, { passive: false });

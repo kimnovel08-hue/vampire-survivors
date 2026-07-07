@@ -388,9 +388,28 @@ body {
 }
 
 .pause-build-scroll {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.pause-tabs {
+  display: none;
+}
+
+.pause-tab-action {
+  display: none;
+  min-height: 42px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(139, 233, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(69, 208, 255, 0.12);
+  color: #f6f2e8;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
 }
 
 .pause-build-section {
@@ -1265,6 +1284,7 @@ body {
   .hud-item {
     min-width: 0;
     flex: 1;
+    flex-basis: calc(33.333% - 6px);
     padding: 8px 6px;
     font-size: 13px;
   }
@@ -1352,29 +1372,6 @@ body {
     min-height: 48px;
   }
 
-  .pause-panel {
-    width: calc(100vw - 20px);
-    max-height: calc(100vh - 20px);
-    padding: 16px;
-  }
-
-  .pause-run-stats,
-  .pause-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pause-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .pause-build-section {
-    padding: 12px;
-  }
-
-  .pause-upgrade-chip {
-    font-size: 12px;
-  }
-
   .sound-hud {
     right: 8px;
     top: auto;
@@ -1382,14 +1379,6 @@ body {
     width: auto;
   }
 
-  .pause-button {
-    right: 8px;
-    top: 8px;
-    width: 48px;
-    height: 48px;
-  }
-
-  .pause-panel,
   .guide-panel {
     max-height: calc(100vh - 28px);
     overflow-y: auto;
@@ -1487,6 +1476,140 @@ body {
   }
 
   .synergy-card p {
+    font-size: 12px;
+  }
+
+  .hud {
+    top: 8px;
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    gap: 6px;
+  }
+
+  .hud-item {
+    min-width: 0;
+    flex: 1 1 calc(33.333% - 6px);
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  .pause-button {
+    right: 10px;
+    top: max(96px, calc(env(safe-area-inset-top) + 96px));
+    width: 46px;
+    height: 46px;
+  }
+
+  .pause-panel {
+    width: calc(100vw - 20px);
+    height: min(85vh, calc(100vh - 20px));
+    height: min(85dvh, calc(100dvh - 20px));
+    max-height: min(85vh, calc(100vh - 20px));
+    max-height: min(85dvh, calc(100dvh - 20px));
+    overflow: hidden;
+    padding: 14px;
+  }
+
+  .pause-panel h1 {
+    margin-bottom: 8px;
+    font-size: clamp(28px, 7vw, 38px);
+  }
+
+  .pause-run-stats,
+  .pause-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .pause-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .pause-actions button {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .pause-actions button:first-child {
+    grid-column: 1 / -1;
+    min-height: 46px;
+    font-size: 15px;
+  }
+
+  .pause-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    flex-shrink: 0;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .pause-tab {
+    min-height: 42px;
+    border: 1px solid rgba(246, 242, 232, 0.16);
+    border-radius: 8px;
+    background: rgba(17, 18, 22, 0.76);
+    color: #d8dde6;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .pause-tab.is-active {
+    border-color: #ffd447;
+    background: rgba(255, 212, 71, 0.18);
+    color: #ffd447;
+  }
+
+  .pause-tab-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pause-build-scroll {
+    flex: 1;
+    min-height: 45vh;
+    min-height: 45dvh;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .pause-tab-panel {
+    display: none;
+  }
+
+  .pause-tab-panel.is-active {
+    display: block;
+  }
+
+  .pause-build-section {
+    margin-top: 0;
+    padding: 12px;
+  }
+
+  .pause-build-section h2 {
+    font-size: 17px;
+  }
+
+  .pause-stat,
+  .pause-summary-item {
+    min-height: 50px;
+    padding: 8px;
+  }
+
+  .pause-stat strong,
+  .pause-summary-item strong {
+    font-size: 15px;
+  }
+
+  .pause-upgrade-chip {
+    min-height: 34px;
+    padding: 7px 10px;
     font-size: 12px;
   }
 }
