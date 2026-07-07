@@ -1293,6 +1293,15 @@ function migrateSaveData(data) {
     }
   }
 
+  // 이전 버전에서 클리어 기록만 저장되고 해금값이 빠진 경우를 복구한다.
+  if (defaults.difficultyRecords.normal.cleared) {
+    defaults.difficultyUnlocks.hard = true;
+  }
+
+  if (defaults.difficultyRecords.hard.cleared) {
+    defaults.difficultyUnlocks.hell = true;
+  }
+
   defaults.version = 1;
   defaults.soul = Math.max(0, Math.floor(Number(source.soul ?? defaults.soul) || 0));
   defaults.bestScore = Math.max(0, Math.floor(Number(source.bestScore ?? defaults.bestScore) || 0));
@@ -3642,12 +3651,14 @@ function addEnemyDefeatParticles(target) {
 }
 
 function defeatBoss(boss) {
+  const isFinalBoss = boss.isFinalBoss || boss.bossType === "final";
+
   playEnemyDeathSound();
   gameState.score += boss.score;
   gameState.kills += 1;
   gameState.bossKills += 1;
   gameState.bossKillCounts[boss.bossType] = (gameState.bossKillCounts[boss.bossType] ?? 0) + 1;
-  if (boss.isFinalBoss) {
+  if (isFinalBoss) {
     gameState.finalBossDefeated = true;
   }
   spawnExpBurst(boss.x, boss.y, boss.expOrbs, boss.exp);
@@ -3657,14 +3668,14 @@ function defeatBoss(boss) {
   }
 
   addFloatingText(`${boss.label} 처치!`, boss.x, boss.y - boss.radius, "#ffd447", 26, 1.5);
-  addScreenShake(boss.isFinalBoss ? 12 : 8, boss.isFinalBoss ? 0.24 : 0.16);
-  triggerHitStop(boss.isFinalBoss ? 0.06 : 0.045);
+  addScreenShake(isFinalBoss ? 12 : 8, isFinalBoss ? 0.24 : 0.16);
+  triggerHitStop(isFinalBoss ? 0.06 : 0.045);
   addParticleBurst(boss.x, boss.y, {
-    count: boss.isFinalBoss ? 22 : 15,
-    color: boss.isFinalBoss ? "rgba(255, 212, 71, 0.98)" : "rgba(255, 212, 71, 0.9)",
-    speed: boss.isFinalBoss ? 210 : 165,
-    size: boss.isFinalBoss ? 4.8 : 4,
-    duration: boss.isFinalBoss ? 0.9 : 0.7,
+    count: isFinalBoss ? 22 : 15,
+    color: isFinalBoss ? "rgba(255, 212, 71, 0.98)" : "rgba(255, 212, 71, 0.9)",
+    speed: isFinalBoss ? 210 : 165,
+    size: isFinalBoss ? 4.8 : 4,
+    duration: isFinalBoss ? 0.9 : 0.7,
   });
   addEffect({
     type: "circle",
@@ -3676,7 +3687,7 @@ function defeatBoss(boss) {
   });
   bosses = bosses.filter((item) => item !== boss);
 
-  if (boss.isFinalBoss) {
+  if (isFinalBoss) {
     clearGame();
   }
 }
@@ -4891,9 +4902,14 @@ function renderResultStats(bestScore, bestTime) {
 }
 
 function saveDifficultyClearRecord() {
-  const difficultyKey = gameState.selectedDifficulty;
+  const difficultyKey = difficultyConfigs[gameState.selectedDifficulty] ? gameState.selectedDifficulty : "normal";
+  gameState.selectedDifficulty = difficultyKey;
   const config = difficultyConfigs[difficultyKey];
-  permanentSave.difficultyUnlocks = permanentSave.difficultyUnlocks ?? createDefaultDifficultyUnlocks();
+  permanentSave.difficultyUnlocks = {
+    ...createDefaultDifficultyUnlocks(),
+    ...(permanentSave.difficultyUnlocks ?? {}),
+    normal: true,
+  };
   permanentSave.difficultyRecords = permanentSave.difficultyRecords ?? createDefaultDifficultyRecords();
   permanentSave.difficultyRecords[difficultyKey] = permanentSave.difficultyRecords[difficultyKey] ?? createDefaultDifficultyRecords()[difficultyKey];
 
@@ -4907,14 +4923,16 @@ function saveDifficultyClearRecord() {
   record.bestScore = Math.max(record.bestScore, gameState.score);
   record.bestKills = Math.max(record.bestKills, gameState.kills);
 
-  if (difficultyKey === "normal" && !permanentSave.difficultyUnlocks.hard) {
+  if (difficultyKey === "normal") {
+    const wasLocked = !permanentSave.difficultyUnlocks.hard;
     permanentSave.difficultyUnlocks.hard = true;
-    unlockMessage = "어려움 모드가 해금되었습니다!";
-    modeUnlocked = true;
-  } else if (difficultyKey === "hard" && !permanentSave.difficultyUnlocks.hell) {
+    unlockMessage = wasLocked ? "어려움 모드가 해금되었습니다!" : unlockMessage;
+    modeUnlocked = wasLocked;
+  } else if (difficultyKey === "hard") {
+    const wasLocked = !permanentSave.difficultyUnlocks.hell;
     permanentSave.difficultyUnlocks.hell = true;
-    unlockMessage = "헬모드가 해금되었습니다!";
-    modeUnlocked = true;
+    unlockMessage = wasLocked ? "헬모드가 해금되었습니다!" : unlockMessage;
+    modeUnlocked = wasLocked;
   } else if (difficultyKey === "hell") {
     clearCode = generateClearCode(difficultyKey, {
       survivalTime: gameState.elapsedTime,

@@ -726,7 +726,7 @@ body {
   font-weight: 900;
 }
 
-.permanent-cta {
+.start-actions .permanent-cta {
   display: grid;
   gap: 5px;
   width: 100%;
@@ -739,18 +739,22 @@ body {
   box-shadow: 0 0 24px rgba(255, 212, 71, 0.12);
 }
 
-.permanent-cta span {
+.start-actions .permanent-cta > span {
   color: #ffd447;
   font-size: 18px;
 }
 
-.permanent-cta small {
+.start-actions .permanent-cta small {
   color: #f6f2e8;
   font-size: 13px;
   font-weight: 800;
 }
 
-.permanent-cta em {
+.start-actions .permanent-cta small span {
+  color: #64f7b4;
+}
+
+.start-actions .permanent-cta em {
   justify-self: center;
   padding: 3px 8px;
   border-radius: 999px;
@@ -761,7 +765,7 @@ body {
   font-weight: 900;
 }
 
-.permanent-cta.has-upgrade,
+.start-actions .permanent-cta.has-upgrade,
 .permanent-gameover-button.has-upgrade {
   animation: permanentPulse 1.8s ease-in-out infinite;
 }
@@ -1223,12 +1227,6 @@ body {
 @media (hover: none), (pointer: coarse) {
   .joystick {
     display: block;
-  }
-
-  .mobile-orientation-hint {
-    display: block;
-    right: 18px;
-    bottom: max(162px, calc(env(safe-area-inset-bottom) + 162px));
   }
 
   .hud {
