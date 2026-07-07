@@ -88,6 +88,8 @@ const SOUND_KEY = "neon-survivor-sound-enabled";
 const SAVE_KEY = "survivorGameSave_v1";
 const joystickMaxDistance = 46;
 const SYNERGY_COLLECTION_SIZE = 20;
+const MIN_BULLET_FIRE_DELAY = 0.05;
+const MAX_RUN_SPEED_MULTIPLIER = 2.8;
 // 배포 기본값은 false다. true로 바꾸면 10분 대신 30초에 메인보스가 나와 테스트가 쉬워진다.
 const DEBUG_FAST_FINAL_BOSS = false;
 const FINAL_BOSS_TIME = DEBUG_FAST_FINAL_BOSS ? 30 : 600;
@@ -348,7 +350,7 @@ const synergyDefinitions = {
     conditionText: "체력 증가 계열 + 흡혈",
     description: "피해를 받을 때마다 피의 힘으로 주변 적에게 반격 피해를 줍니다.",
     condition() {
-      return hasAnyUpgrade(["sturdy-body"]) && hasUpgrade("vampire");
+      return hasAnyUpgrade(["sturdy-body", "steel-health", "giant-heart"]) && hasUpgrade("vampire");
     },
   },
   rapidPierce: {
@@ -358,7 +360,7 @@ const synergyDefinitions = {
     conditionText: "관통탄 + 공격 속도 증가 계열",
     description: "관통탄의 흐름이 빨라져 주기적으로 공격속도가 크게 증가합니다.",
     condition() {
-      return hasUpgrade("piercing-shot") && hasAnyUpgrade(["quick-hands", "infinite-barrage"]);
+      return hasUpgrade("piercing-shot") && hasAnyUpgrade(["quick-hands", "skilled-hands", "storm-hands", "infinite-barrage"]);
     },
   },
   rupturePierce: {
@@ -418,7 +420,7 @@ const synergyDefinitions = {
     conditionText: "경험치 증가 계열 + 자석",
     description: "지식을 빠르게 흡수할수록 잠시 동안 공격력이 폭주합니다.",
     condition() {
-      return hasAnyUpgrade(["fast-learning"]) && hasUpgrade("magnet");
+      return hasAnyUpgrade(["fast-learning", "knowledge-absorption", "explosive-growth"]) && hasUpgrade("magnet");
     },
   },
 };
@@ -579,7 +581,7 @@ const upgrades = [
     description: "모든 무기의 기본 공격력이 조금 증가합니다.",
     effectText: "공격력 +10%",
     apply() {
-      weapons.globalDamageMultiplier *= 1.1;
+      increaseGlobalDamage(1.1);
     },
   },
   {
@@ -590,7 +592,7 @@ const upgrades = [
     description: "자동 탄환을 더 자주 발사합니다.",
     effectText: "공격 속도 +10%",
     apply() {
-      weapons.bullet.fireDelay = Math.max(0.08, weapons.bullet.fireDelay / 1.1);
+      increaseBulletAttackSpeed(1.1, 0.08);
     },
   },
   {
@@ -601,8 +603,7 @@ const upgrades = [
     description: "플레이어 이동 속도가 증가합니다.",
     effectText: "이동 속도 +10%",
     apply() {
-      player.runSpeedMultiplier = (player.runSpeedMultiplier ?? 1) * 1.1;
-      refreshPlayerSpeed();
+      increaseMoveSpeed(1.1);
     },
   },
   {
@@ -613,8 +614,7 @@ const upgrades = [
     description: "최대 체력이 늘어나고 즉시 조금 회복합니다.",
     effectText: "최대 체력 +15, 현재 체력 +15",
     apply() {
-      player.maxHp += 15;
-      player.hp = Math.min(player.maxHp, player.hp + 15);
+      increaseMaxHp(15);
     },
   },
   {
@@ -625,7 +625,7 @@ const upgrades = [
     description: "경험치 구슬을 먹을 때 얻는 EXP가 증가합니다.",
     effectText: "EXP 획득량 +10%",
     apply() {
-      gameState.expGainMultiplier *= 1.1;
+      increaseExpGain(1.1);
     },
   },
   {
@@ -662,7 +662,7 @@ const upgrades = [
     description: "주변 경험치 구슬을 끌어오는 범위가 넓어집니다.",
     effectText: "경험치 획득 범위 +30%",
     apply() {
-      player.magnetRadius *= 1.3;
+      increaseMagnetRange(1.3);
     },
   },
   {
@@ -674,6 +674,61 @@ const upgrades = [
     effectText: "적 처치 시 10% 확률로 체력 1 회복",
     apply() {
       gameState.killHealChance += 0.1;
+    },
+  },
+  {
+    id: "refined-bullets",
+    name: "정교한 탄환",
+    rarity: "rare",
+    type: "증강",
+    description: "탄환의 균형을 잡아 모든 무기의 공격력이 더 크게 증가합니다.",
+    effectText: "공격력 +16%",
+    apply() {
+      increaseGlobalDamage(1.16);
+    },
+  },
+  {
+    id: "skilled-hands",
+    name: "숙련된 손놀림",
+    rarity: "rare",
+    type: "증강",
+    description: "반복 사격에 익숙해져 자동 탄환 발사 간격이 줄어듭니다.",
+    effectText: "공격 속도 +16%",
+    apply() {
+      increaseBulletAttackSpeed(1.16);
+    },
+  },
+  {
+    id: "agile-steps",
+    name: "민첩한 발걸음",
+    rarity: "rare",
+    type: "증강",
+    description: "몸놀림이 더 가벼워져 이동 속도가 증가합니다.",
+    effectText: "이동 속도 +14%",
+    apply() {
+      increaseMoveSpeed(1.14);
+    },
+  },
+  {
+    id: "steel-health",
+    name: "강철 체력",
+    rarity: "rare",
+    type: "증강",
+    description: "단단한 체력으로 버틸 수 있는 피해량이 증가합니다.",
+    effectText: "최대 체력 +25, 현재 체력 +25",
+    apply() {
+      increaseMaxHp(25);
+    },
+  },
+  {
+    id: "knowledge-absorption",
+    name: "지식 흡수",
+    rarity: "rare",
+    type: "증강",
+    description: "경험치 구슬에서 더 많은 성장을 끌어냅니다.",
+    effectText: "EXP 획득량 +16%",
+    apply() {
+      increaseExpGain(1.16);
     },
   },
   {
@@ -826,6 +881,61 @@ const upgrades = [
     },
   },
   {
+    id: "deadly-bullets",
+    name: "치명적인 탄환",
+    rarity: "epic",
+    type: "증강",
+    description: "약점을 꿰뚫는 탄환으로 모든 무기의 공격력이 크게 증가합니다.",
+    effectText: "공격력 +25%",
+    apply() {
+      increaseGlobalDamage(1.25);
+    },
+  },
+  {
+    id: "storm-hands",
+    name: "폭풍 손놀림",
+    rarity: "epic",
+    type: "증강",
+    description: "몰아치는 손놀림으로 자동 탄환 발사 속도가 크게 증가합니다.",
+    effectText: "공격 속도 +25%",
+    apply() {
+      increaseBulletAttackSpeed(1.25);
+    },
+  },
+  {
+    id: "gale-movement",
+    name: "질풍 이동",
+    rarity: "epic",
+    type: "증강",
+    description: "위험한 틈을 빠르게 빠져나갈 수 있도록 이동 속도가 크게 증가합니다.",
+    effectText: "이동 속도 +20%",
+    apply() {
+      increaseMoveSpeed(1.2);
+    },
+  },
+  {
+    id: "giant-heart",
+    name: "거인의 심장",
+    rarity: "epic",
+    type: "증강",
+    description: "거대한 생명력으로 최대 체력과 현재 체력이 크게 증가합니다.",
+    effectText: "최대 체력 +45, 현재 체력 +45",
+    apply() {
+      increaseMaxHp(45);
+    },
+  },
+  {
+    id: "explosive-growth",
+    name: "폭발적 성장",
+    rarity: "epic",
+    type: "증강",
+    description: "전투 경험을 폭발적으로 흡수해 EXP 획득량이 크게 증가합니다.",
+    effectText: "EXP 획득량 +25%",
+    apply() {
+      increaseExpGain(1.25);
+    },
+  },
+  {
     id: "meteor",
     name: "메테오",
     rarity: "legendary",
@@ -845,10 +955,10 @@ const upgrades = [
     type: "증강",
     maxStacks: 1,
     description: "압도적인 속도로 총알을 쏟아내지만 탄환 하나의 위력은 낮아집니다.",
-    effectText: "공격 속도 +80%, 총알 피해 -35%",
+    effectText: "공격 속도 +80%, 총알 피해 -20%",
     apply() {
-      weapons.bullet.fireDelay = Math.max(0.05, weapons.bullet.fireDelay / 1.8);
-      weapons.bullet.damageMultiplier *= 0.65;
+      increaseBulletAttackSpeed(1.8);
+      weapons.bullet.damageMultiplier *= 0.8;
     },
   },
   {
@@ -857,18 +967,20 @@ const upgrades = [
     rarity: "legendary",
     type: "증강",
     maxStacks: 1,
-    description: "플레이어 주변을 도는 분신이 보조 사격을 합니다.",
-    effectText: "플레이어 주변에 보조 공격 분신 생성",
+    description: "플레이어 뒤쪽을 따라다니는 작은 분신이 보조 사격을 합니다.",
+    effectText: "따라다니는 보조 공격 분신 생성",
     apply() {
       clones.push({
-        angle: 0,
-        orbitRadius: 54,
-        orbitSpeed: 1.5,
-        x: player.x,
-        y: player.y,
+        x: player.x - Math.cos(player.facingAngle ?? -Math.PI / 2) * 36,
+        y: player.y - Math.sin(player.facingAngle ?? -Math.PI / 2) * 36,
+        radius: Math.max(6, Math.round(player.radius * 0.42)),
+        followDistance: 42,
+        sideOffset: 20,
+        side: clones.length % 2 === 0 ? -1 : 1,
+        followSpeed: 12,
         fireTimer: 0,
-        fireDelay: 0.78,
-        damageMultiplier: 0.7,
+        fireDelayMultiplier: 1.7,
+        damageMultiplier: 0.72,
       });
     },
   },
@@ -879,10 +991,11 @@ const upgrades = [
     type: "증강",
     maxStacks: 1,
     description: "주기적으로 적들의 움직임을 크게 늦춥니다.",
-    effectText: "25초마다 2초간 적 둔화",
+    effectText: "25초마다 3초간 적 둔화, 둔화 중 피해 증가",
     apply() {
       gameState.timeSlow.enabled = true;
       gameState.timeSlow.timer = 3;
+      gameState.timeSlow.duration = 3;
     },
   },
   {
@@ -1074,8 +1187,11 @@ function resetGame(startImmediately = hasStartedGame) {
       timer: 0,
       cooldown: 25,
       activeTimer: 0,
-      duration: 2,
+      duration: 3,
       multiplier: 0.2,
+      bossMultiplier: 0.65,
+      damageBonus: 0.15,
+      bossDamageBonusMultiplier: 0.5,
     },
   };
 
@@ -1338,6 +1454,33 @@ function getPermanentLevel(id) {
 
 function getPermanentUpgradeCost(definition, level) {
   return definition.baseCost + level * definition.costGrowth + level * level * definition.costCurve;
+}
+
+function increaseGlobalDamage(multiplier) {
+  weapons.globalDamageMultiplier *= multiplier;
+}
+
+function increaseBulletAttackSpeed(multiplier, minDelay = MIN_BULLET_FIRE_DELAY) {
+  weapons.bullet.fireDelay = Math.max(minDelay, weapons.bullet.fireDelay / multiplier);
+}
+
+function increaseMoveSpeed(multiplier) {
+  player.runSpeedMultiplier = Math.min(MAX_RUN_SPEED_MULTIPLIER, (player.runSpeedMultiplier ?? 1) * multiplier);
+  refreshPlayerSpeed();
+}
+
+function increaseMaxHp(amount) {
+  player.maxHp += amount;
+  player.hp = Math.min(player.maxHp, player.hp + amount);
+}
+
+function increaseExpGain(multiplier) {
+  gameState.expGainMultiplier *= multiplier;
+}
+
+function increaseMagnetRange(multiplier) {
+  const hardCap = Math.max(window.innerWidth, window.innerHeight, playerStart.magnetRadius) * 2.5;
+  player.magnetRadius = Math.min(hardCap, player.magnetRadius * multiplier);
 }
 
 function applyPermanentUpgrades() {
@@ -1887,11 +2030,15 @@ function getUpgradeCategory(upgrade) {
   if (upgrade.type === "무기 강화") return "weapon";
   if (upgrade.rarity === "legendary") return "legendary";
 
-  const growthIds = new Set(["fast-learning", "magnet", "reroll"]);
-  const survivalIds = new Set(["sturdy-body", "vampire", "shield", "shockwave", "cold-aura", "force-push"]);
+  const growthIds = new Set(["fast-learning", "knowledge-absorption", "explosive-growth", "magnet", "reroll"]);
+  const survivalIds = new Set(["light-steps", "agile-steps", "gale-movement", "sturdy-body", "steel-health", "giant-heart", "vampire", "shield", "shockwave", "cold-aura", "force-push"]);
   const attackIds = new Set([
     "sharp-bullets",
+    "refined-bullets",
+    "deadly-bullets",
     "quick-hands",
+    "skilled-hands",
+    "storm-hands",
     "piercing-shot",
     "weak-spot",
     "double-shot",
@@ -3070,6 +3217,8 @@ function triggerKnowledgeSurge() {
 function updateBosses(deltaTime) {
   for (const boss of bosses) {
     const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+    const timeSlowMultiplier =
+      gameState.timeSlow.activeTimer > 0 ? gameState.timeSlow.bossMultiplier : 1;
     const frostSlow =
       isSynergyActive("frostAura") &&
       gameState.aura.enabled &&
@@ -3078,8 +3227,8 @@ function updateBosses(deltaTime) {
         : 1;
 
     boss.spawnAge = (boss.spawnAge ?? 0) + deltaTime;
-    boss.x += Math.cos(angle) * boss.speed * frostSlow * deltaTime;
-    boss.y += Math.sin(angle) * boss.speed * frostSlow * deltaTime;
+    boss.x += Math.cos(angle) * boss.speed * frostSlow * timeSlowMultiplier * deltaTime;
+    boss.y += Math.sin(angle) * boss.speed * frostSlow * timeSlowMultiplier * deltaTime;
     boss.touchCooldown = Math.max(0, boss.touchCooldown - deltaTime);
     boss.hitFlashTimer = Math.max(0, (boss.hitFlashTimer ?? 0) - deltaTime);
 
@@ -3312,12 +3461,26 @@ function updateMeteors(deltaTime) {
 
 function updateClones(deltaTime) {
   for (const clone of clones) {
-    clone.angle += clone.orbitSpeed * deltaTime;
-    clone.x = player.x + Math.cos(clone.angle) * clone.orbitRadius;
-    clone.y = player.y + Math.sin(clone.angle) * clone.orbitRadius;
+    const facingAngle = player.facingAngle ?? -Math.PI / 2;
+    const backAngle = facingAngle + Math.PI;
+    const sideAngle = facingAngle + Math.PI / 2;
+    const targetX =
+      player.x +
+      Math.cos(backAngle) * clone.followDistance +
+      Math.cos(sideAngle) * clone.sideOffset * clone.side;
+    const targetY =
+      player.y +
+      Math.sin(backAngle) * clone.followDistance +
+      Math.sin(sideAngle) * clone.sideOffset * clone.side;
+    const followRatio = Math.min(1, deltaTime * clone.followSpeed);
+
+    clone.x += (targetX - clone.x) * followRatio;
+    clone.y += (targetY - clone.y) * followRatio;
     clone.fireTimer += deltaTime;
 
-    if (clone.fireTimer >= clone.fireDelay) {
+    const fireDelay = Math.max(0.24, getBulletFireDelay() * clone.fireDelayMultiplier);
+
+    if (clone.fireTimer >= fireDelay) {
       const target = findNearestTargetFrom(clone.x, clone.y);
 
       clone.fireTimer = 0;
@@ -3752,6 +3915,16 @@ function damageTarget(target, rawDamage, knockback, source, options = {}) {
 
   if (gameState.weakSpotEnabled && target.hp / target.maxHp <= 0.4) {
     finalDamage *= 1.35;
+  }
+
+  if (gameState.timeSlow.activeTimer > 0) {
+    const timeSlowBonus = gameState.timeSlow.damageBonus ?? 0;
+
+    if (target.kind === "boss") {
+      finalDamage *= 1 + timeSlowBonus * (gameState.timeSlow.bossDamageBonusMultiplier ?? 0);
+    } else {
+      finalDamage *= 1 + timeSlowBonus;
+    }
   }
 
   target.hp -= finalDamage;
@@ -5008,7 +5181,7 @@ function drawGame() {
   }
 
   for (const clone of clones) {
-    drawCircle({ x: clone.x, y: clone.y, radius: 10 }, "#8be9ff", "#ffffff");
+    drawCircle({ x: clone.x, y: clone.y, radius: clone.radius ?? 8 }, "#8be9ff", "#ffffff");
   }
 
   drawPlayer();
