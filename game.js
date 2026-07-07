@@ -510,7 +510,6 @@ let gameState;
 let weapons;
 let weaponStats;
 let bullets;
-let orbitOrbs;
 let bombs;
 let enemies;
 let bosses;
@@ -543,20 +542,6 @@ const upgrades = [
     },
     apply() {
       upgradeWeapon("bullet");
-    },
-  },
-  {
-    id: "weapon-orbit",
-    name: "회전 구체 강화",
-    rarity: "common",
-    type: "무기 강화",
-    description: "플레이어 주변을 도는 구체 무기의 레벨을 올립니다.",
-    effectText: "구체 개수, 회전 속도, 피해, 반경 증가",
-    isAvailable() {
-      return weapons.orbit.level < weapons.orbit.maxLevel;
-    },
-    apply() {
-      upgradeWeapon("orbit");
     },
   },
   {
@@ -1094,18 +1079,6 @@ function resetGame(startImmediately = hasStartedGame) {
         damageRatio: 0.45,
       },
     },
-    orbit: {
-      level: 1,
-      maxLevel: 8,
-      spawnTimer: 4.6,
-      spawnDelay: 4.6,
-      maxOrbs: 1,
-      duration: 6,
-      damage: 1,
-      radius: 8,
-      orbitRadius: 62,
-      angularSpeed: 2.8,
-    },
     bomb: {
       level: 0,
       maxLevel: 7,
@@ -1122,7 +1095,6 @@ function resetGame(startImmediately = hasStartedGame) {
   applyPermanentUpgrades();
 
   bullets = [];
-  orbitOrbs = [];
   bombs = [];
   enemies = [];
   bosses = [];
@@ -1932,22 +1904,6 @@ function upgradeWeapon(weaponId) {
     }
   }
 
-  if (weaponId === "orbit") {
-    const orbit = weapons.orbit;
-
-    if (orbit.level >= orbit.maxLevel) return;
-
-    orbit.level += 1;
-    orbit.damage *= 1.16;
-    orbit.angularSpeed += 0.22;
-    orbit.orbitRadius += 4;
-    orbit.duration += 0.35;
-
-    if (orbit.level % 2 === 0) {
-      orbit.maxOrbs += 1;
-    }
-  }
-
   if (weaponId === "bomb") {
     const wasUnlocked = weapons.bomb.unlocked;
 
@@ -2099,7 +2055,6 @@ function spawnEnemy() {
     fill: type.fill,
     stroke: type.stroke,
     touchCooldown: 0,
-    orbCooldown: 0,
   });
 
   nextEnemyId += 1;
@@ -2180,7 +2135,6 @@ function spawnFinalBoss() {
     fill: config.finalBossColor,
     stroke: config.finalBossColor,
     touchCooldown: 0,
-    orbCooldown: 0,
     summonTimer: 0,
     shockwaveTimer: finalBossBase.shockwaveDelay,
     shockwaveRadius: finalBossBase.shockwaveRadius,
@@ -2244,7 +2198,6 @@ function spawnBoss(typeKey, minute) {
     fill: type.fill,
     stroke: type.stroke,
     touchCooldown: 0,
-    orbCooldown: 0,
     summonTimer: type.summonDelay ?? 0,
     shockwaveTimer: type.shockwaveDelay ?? 0,
     spawnAge: 0,
@@ -2367,26 +2320,6 @@ function shootFromPoint(sourceX, sourceY, target, damageScale) {
       hitTargetKeys: new Set(),
     });
   }
-}
-
-function spawnOrbitOrb() {
-  const orbit = weapons.orbit;
-
-  if (orbitOrbs.length >= orbit.maxOrbs) {
-    return;
-  }
-
-  orbitOrbs.push({
-    angle: Math.random() * TAU,
-    age: 0,
-    duration: orbit.duration,
-    radius: orbit.radius,
-    orbitRadius: orbit.orbitRadius,
-    angularSpeed: orbit.angularSpeed,
-    damage: orbit.damage,
-    x: player.x,
-    y: player.y,
-  });
 }
 
 function throwBombsAtNearestEnemies() {
@@ -2715,12 +2648,6 @@ function updateWeapons(deltaTime) {
     shootAtNearestEnemy();
   }
 
-  weapons.orbit.spawnTimer += deltaTime;
-  if (weapons.orbit.spawnTimer >= weapons.orbit.spawnDelay) {
-    weapons.orbit.spawnTimer = 0;
-    spawnOrbitOrb();
-  }
-
   if (weapons.bomb.unlocked) {
     weapons.bomb.timer += deltaTime;
 
@@ -2861,7 +2788,6 @@ function updateBosses(deltaTime) {
     boss.x += Math.cos(angle) * boss.speed * frostSlow * deltaTime;
     boss.y += Math.sin(angle) * boss.speed * frostSlow * deltaTime;
     boss.touchCooldown = Math.max(0, boss.touchCooldown - deltaTime);
-    boss.orbCooldown = Math.max(0, boss.orbCooldown - deltaTime);
     boss.hitFlashTimer = Math.max(0, (boss.hitFlashTimer ?? 0) - deltaTime);
 
     if (boss.bossType === "mid") {
@@ -2928,7 +2854,6 @@ function summonBossMinions(boss) {
       fill: type.fill,
       stroke: type.stroke,
       touchCooldown: 0,
-      orbCooldown: 0,
     });
     nextEnemyId += 1;
   }
@@ -2984,17 +2909,6 @@ function updateBullets(deltaTime) {
       bullet.y < window.innerHeight + margin
     );
   });
-}
-
-function updateOrbitOrbs(deltaTime) {
-  for (const orb of orbitOrbs) {
-    orb.age += deltaTime;
-    orb.angle += orb.angularSpeed * deltaTime;
-    orb.x = player.x + Math.cos(orb.angle) * orb.orbitRadius;
-    orb.y = player.y + Math.sin(orb.angle) * orb.orbitRadius;
-  }
-
-  orbitOrbs = orbitOrbs.filter((orb) => orb.age < orb.duration);
 }
 
 function updateBombs(deltaTime) {
@@ -3181,7 +3095,6 @@ function updateEnemies(deltaTime) {
     enemy.y = clamp(enemy.y, -90, window.innerHeight + 90);
     enemy.hitFlashTimer = Math.max(0, (enemy.hitFlashTimer ?? 0) - deltaTime);
     enemy.touchCooldown = Math.max(0, enemy.touchCooldown - deltaTime);
-    enemy.orbCooldown = Math.max(0, enemy.orbCooldown - deltaTime);
   }
 }
 
@@ -3453,20 +3366,6 @@ function handleBulletTargetCollisions() {
 
     if (shouldRemoveBullet) {
       bullets.splice(bulletIndex, 1);
-    }
-  }
-}
-
-function handleOrbitTargetCollisions() {
-  for (const target of getAllTargets()) {
-    for (const orb of orbitOrbs) {
-      const distance = getDistance(orb.x, orb.y, target.x, target.y);
-
-      if (distance < orb.radius + target.radius && target.orbCooldown <= 0) {
-        target.orbCooldown = 0.35;
-        damageTarget(target, orb.damage * getAttackMultiplier(), 10, "회전 구체");
-        break;
-      }
     }
   }
 }
@@ -4106,7 +4005,6 @@ function updateGame(deltaTime) {
   updateWeapons(deltaTime);
   updateBosses(deltaTime);
   updateBullets(deltaTime);
-  updateOrbitOrbs(deltaTime);
   updateBombs(deltaTime);
   updateFlameZones(deltaTime);
   updateMeteors(deltaTime);
@@ -4116,7 +4014,6 @@ function updateGame(deltaTime) {
   updateSupplyBoxes(deltaTime);
   updateAuraDamage(deltaTime);
   handleBulletTargetCollisions();
-  handleOrbitTargetCollisions();
   handlePlayerTargetCollisions();
   updateVisualEffects(deltaTime);
   updateHud();
@@ -4787,10 +4684,6 @@ function drawGame() {
     drawEnemyHp(boss);
   }
 
-  for (const orb of orbitOrbs) {
-    drawCircle(orb, "#8be9ff", "#ffffff");
-  }
-
   for (const clone of clones) {
     drawCircle({ x: clone.x, y: clone.y, radius: 10 }, "#8be9ff", "#ffffff");
   }
@@ -5117,6 +5010,15 @@ function closePermanentUpgradeMenu() {
   setUiBlocking(shouldBlock);
 }
 
+function startRunFromPermanentMenu() {
+  if (permanentMenuReadOnly) {
+    renderPermanentUpgradeMenu("영구 강화는 게임오버 후 또는 메인 메뉴에서 사용할 수 있습니다.");
+    return;
+  }
+
+  startGame();
+}
+
 function buyPermanentUpgrade(id) {
   if (permanentMenuReadOnly) {
     renderPermanentUpgradeMenu("영구 강화 구매는 게임오버 후 또는 메인 메뉴에서 사용할 수 있습니다.");
@@ -5382,7 +5284,7 @@ addButtonClick(mainMenuButton, goToMainMenu);
 addButtonClick(guidePermanentButton, openPermanentFromGuide);
 addButtonClick(guideLaterButton, () => closePermanentGuide(true));
 addButtonClick(closePermanentButton, closePermanentUpgradeMenu);
-addButtonClick(newRunPermanentButton, startGame);
+addButtonClick(newRunPermanentButton, startRunFromPermanentMenu);
 addButtonClick(resetSaveButton, resetPermanentSave);
 addButtonClick(openSynergyCollectionButton, openSynergyCollection);
 addButtonClick(closeSynergyCollectionButton, closeSynergyCollection);
