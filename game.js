@@ -93,6 +93,23 @@ const MIN_BULLET_FIRE_DELAY = 0.05;
 const MAX_RUN_SPEED_MULTIPLIER = 2.8;
 const MAX_SPECIAL_PROJECTILES = 54;
 const MAX_ELECTRIC_MINES = 18;
+const MAX_LIGHTNING_CHAIN_TARGETS = 6;
+const PERFORMANCE_CAPS = {
+  enemies: 220,
+  bosses: 12,
+  bullets: 160,
+  bombs: 80,
+  specialProjectiles: 120,
+  areaEffects: 24,
+  electricMines: 18,
+  meteors: 40,
+  clones: 4,
+  expOrbs: 280,
+  supplyBoxes: 8,
+  effects: 120,
+  lightningLines: 60,
+  floatingTexts: 80,
+};
 // 배포 기본값은 false다. true로 바꾸면 10분 대신 30초에 메인보스가 나와 테스트가 쉬워진다.
 const DEBUG_FAST_FINAL_BOSS = false;
 const FINAL_BOSS_TIME = DEBUG_FAST_FINAL_BOSS ? 30 : 600;
@@ -685,6 +702,7 @@ let animationFrameId;
 let resizeFrameId = null;
 let nextEnemyId;
 let nextBossId;
+let nextRuntimeTargetId = 1;
 let permanentSave = loadPermanentSave();
 let selectedDifficulty = "normal";
 let activePauseTab = "summary";
@@ -1331,6 +1349,8 @@ function resetGame(startImmediately = hasStartedGame) {
       knowledgeOrbCount: 0,
       knowledgeCooldown: 0,
       knowledgeBuffTimer: 0,
+      toxicExplosionCooldown: 0,
+      ultimateEffectCooldowns: {},
     },
     bestScore: records.bestScore,
     bestTime: records.bestTime,
@@ -1465,6 +1485,7 @@ function resetGame(startImmediately = hasStartedGame) {
   lightningLines = [];
   nextEnemyId = 1;
   nextBossId = 1;
+  nextRuntimeTargetId = 1;
   lastTime = performance.now();
 
   levelUpScreen.classList.add("hidden");
@@ -2680,8 +2701,9 @@ function chooseEnemyType() {
 
 function spawnEnemy() {
   const difficulty = getDifficulty();
+  enemies = trimArrayToCap(Array.isArray(enemies) ? enemies : [], PERFORMANCE_CAPS.enemies);
 
-  if (enemies.length >= difficulty.maxEnemies) {
+  if (enemies.length >= Math.min(difficulty.maxEnemies, PERFORMANCE_CAPS.enemies)) {
     return;
   }
 
@@ -2888,12 +2910,20 @@ function spawnBoss(typeKey, minute) {
 }
 
 function spawnExpOrb(x, y, value) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+    return;
+  }
+
+  expOrbs = trimArrayToCap(Array.isArray(expOrbs) ? expOrbs : [], PERFORMANCE_CAPS.expOrbs);
+
   expOrbs.push({
     x,
     y,
     value,
     radius: 7,
   });
+
+  trimArrayToCap(expOrbs, PERFORMANCE_CAPS.expOrbs);
 }
 
 function spawnExpBurst(x, y, count, value) {
@@ -2907,6 +2937,7 @@ function spawnExpBurst(x, y, count, value) {
 
 function spawnSupplyBox(x = null, y = null) {
   const margin = 70;
+  supplyBoxes = trimArrayToCap(Array.isArray(supplyBoxes) ? supplyBoxes : [], PERFORMANCE_CAPS.supplyBoxes);
 
   supplyBoxes.push({
     x: x ?? margin + Math.random() * Math.max(1, window.innerWidth - margin * 2),
@@ -2915,6 +2946,8 @@ function spawnSupplyBox(x = null, y = null) {
     age: 0,
     lifetime: 34,
   });
+
+  trimArrayToCap(supplyBoxes, PERFORMANCE_CAPS.supplyBoxes);
 }
 
 function findNearestTargetFrom(x, y) {
@@ -2934,11 +2967,149 @@ function findNearestTargetFrom(x, y) {
 }
 
 function getAllTargets() {
-  return [...enemies, ...bosses];
+  const safeEnemies = Array.isArray(enemies) ? enemies : [];
+  const safeBosses = Array.isArray(bosses) ? bosses : [];
+
+  return [...safeEnemies, ...safeBosses].filter(isValidTarget);
 }
 
 function getTargetKey(target) {
-  return `${target.kind}-${target.id}`;
+  if (!target) {
+    return "missing-target";
+  }
+
+  if (target.id !== undefined && target.id !== null) {
+    return `${target.kind ?? "target"}-${target.id}`;
+  }
+
+  if (!target.runtimeKey) {
+    target.runtimeKey = `runtime-target-${nextRuntimeTargetId}`;
+    nextRuntimeTargetId += 1;
+  }
+
+  return target.runtimeKey;
+}
+
+function isFiniteNumber(value) {
+  return Number.isFinite(value);
+}
+
+function isValidTarget(target) {
+  return Boolean(
+    target &&
+      target.hp > 0 &&
+      isFiniteNumber(target.x) &&
+      isFiniteNumber(target.y) &&
+      isFiniteNumber(target.radius),
+  );
+}
+
+function trimArrayToCap(array, cap) {
+  if (!Array.isArray(array)) {
+    return [];
+  }
+
+  if (array.length > cap) {
+    array.splice(0, array.length - cap);
+  }
+
+  return array;
+}
+
+function addLightningLine(line) {
+  lightningLines = trimArrayToCap(Array.isArray(lightningLines) ? lightningLines : [], PERFORMANCE_CAPS.lightningLines);
+  lightningLines.push({ age: 0, duration: 0.16, ...line });
+  trimArrayToCap(lightningLines, PERFORMANCE_CAPS.lightningLines);
+}
+
+function canTriggerUltimateEffect(synergyId, cooldown = 0.8) {
+  if (!gameState?.synergy || !isSynergyActive(synergyId)) {
+    return false;
+  }
+
+  const timers = gameState.synergy.ultimateEffectCooldowns ?? {};
+  gameState.synergy.ultimateEffectCooldowns = timers;
+
+  if ((timers[synergyId] ?? 0) > 0) {
+    return false;
+  }
+
+  timers[synergyId] = cooldown;
+  return true;
+}
+
+function cleanupRuntimeArrays() {
+  enemies = trimArrayToCap((Array.isArray(enemies) ? enemies : []).filter(isValidTarget), PERFORMANCE_CAPS.enemies);
+  bosses = trimArrayToCap((Array.isArray(bosses) ? bosses : []).filter(isValidTarget), PERFORMANCE_CAPS.bosses ?? 12);
+  bullets = trimArrayToCap((Array.isArray(bullets) ? bullets : []).filter((bullet) => (
+    bullet &&
+    isFiniteNumber(bullet.x) &&
+    isFiniteNumber(bullet.y) &&
+    isFiniteNumber(bullet.vx) &&
+    isFiniteNumber(bullet.vy)
+  )), PERFORMANCE_CAPS.bullets);
+  bombs = trimArrayToCap((Array.isArray(bombs) ? bombs : []).filter((bomb) => (
+    bomb &&
+    isFiniteNumber(bomb.x) &&
+    isFiniteNumber(bomb.y) &&
+    isFiniteNumber(bomb.radius) &&
+    isFiniteNumber(bomb.fuseTime)
+  )), PERFORMANCE_CAPS.bombs);
+  specialProjectiles = trimArrayToCap((Array.isArray(specialProjectiles) ? specialProjectiles : []).filter((projectile) => (
+    projectile &&
+    isFiniteNumber(projectile.x) &&
+    isFiniteNumber(projectile.y) &&
+    isFiniteNumber(projectile.vx) &&
+    isFiniteNumber(projectile.vy) &&
+    isFiniteNumber(projectile.radius)
+  )), PERFORMANCE_CAPS.specialProjectiles);
+  flameZones = trimArrayToCap((Array.isArray(flameZones) ? flameZones : []).filter((zone) => (
+    zone &&
+    isFiniteNumber(zone.x) &&
+    isFiniteNumber(zone.y) &&
+    isFiniteNumber(zone.radius) &&
+    isFiniteNumber(zone.duration) &&
+    zone.duration > 0
+  )), PERFORMANCE_CAPS.areaEffects);
+  electricMines = trimArrayToCap((Array.isArray(electricMines) ? electricMines : []).filter((mine) => (
+    mine &&
+    isFiniteNumber(mine.x) &&
+    isFiniteNumber(mine.y) &&
+    isFiniteNumber(mine.radius) &&
+    isFiniteNumber(mine.fuseTime)
+  )), PERFORMANCE_CAPS.electricMines);
+  meteors = trimArrayToCap((Array.isArray(meteors) ? meteors : []).filter((meteor) => (
+    meteor &&
+    isFiniteNumber(meteor.x) &&
+    isFiniteNumber(meteor.y) &&
+    isFiniteNumber(meteor.warningTime)
+  )), PERFORMANCE_CAPS.meteors);
+  clones = trimArrayToCap((Array.isArray(clones) ? clones : []).filter((clone) => (
+    clone &&
+    isFiniteNumber(clone.x) &&
+    isFiniteNumber(clone.y)
+  )), PERFORMANCE_CAPS.clones);
+  expOrbs = trimArrayToCap(Array.isArray(expOrbs) ? expOrbs : [], PERFORMANCE_CAPS.expOrbs);
+  supplyBoxes = trimArrayToCap(Array.isArray(supplyBoxes) ? supplyBoxes : [], PERFORMANCE_CAPS.supplyBoxes);
+  effects = trimArrayToCap((Array.isArray(effects) ? effects : []).filter((effect) => (
+    effect &&
+    isFiniteNumber(effect.age) &&
+    isFiniteNumber(effect.duration)
+  )), PERFORMANCE_CAPS.effects);
+  lightningLines = trimArrayToCap((Array.isArray(lightningLines) ? lightningLines : []).filter((line) => (
+    line &&
+    isFiniteNumber(line.x1) &&
+    isFiniteNumber(line.y1) &&
+    isFiniteNumber(line.x2) &&
+    isFiniteNumber(line.y2) &&
+    isFiniteNumber(line.duration)
+  )), PERFORMANCE_CAPS.lightningLines);
+  floatingTexts = trimArrayToCap((Array.isArray(floatingTexts) ? floatingTexts : []).filter((text) => (
+    text &&
+    isFiniteNumber(text.x) &&
+    isFiniteNumber(text.y) &&
+    isFiniteNumber(text.duration)
+  )), PERFORMANCE_CAPS.floatingTexts);
 }
 
 function getAttackMultiplier() {
@@ -2953,7 +3124,7 @@ function getBulletFireDelay() {
     ? 1.8
     : 1;
 
-  return weapons.bullet.fireDelay / rapidPierceBuff;
+  return Math.max(MIN_BULLET_FIRE_DELAY, weapons.bullet.fireDelay / rapidPierceBuff);
 }
 
 function shootAtNearestEnemy() {
@@ -2966,6 +3137,16 @@ function shootAtNearestEnemy() {
 }
 
 function shootFromPoint(sourceX, sourceY, target, damageScale) {
+  if (!isValidTarget(target)) {
+    return;
+  }
+
+  bullets = trimArrayToCap(Array.isArray(bullets) ? bullets : [], PERFORMANCE_CAPS.bullets);
+
+  if (bullets.length >= PERFORMANCE_CAPS.bullets) {
+    bullets.splice(0, Math.max(1, bullets.length - PERFORMANCE_CAPS.bullets + 1));
+  }
+
   const bullet = weapons.bullet;
   const baseAngle = Math.atan2(target.y - sourceY, target.x - sourceX);
   const spread = bullet.shots === 1 ? 0 : bullet.spread;
@@ -2990,11 +3171,19 @@ function shootFromPoint(sourceX, sourceY, target, damageScale) {
       hitTargetKeys: new Set(),
     });
   }
+
+  trimArrayToCap(bullets, PERFORMANCE_CAPS.bullets);
 }
 
 function throwBombsAtNearestEnemies() {
   if (!weapons.bomb.unlocked || getAllTargets().length === 0) {
     return;
+  }
+
+  bombs = trimArrayToCap(Array.isArray(bombs) ? bombs : [], PERFORMANCE_CAPS.bombs);
+
+  if (bombs.length >= PERFORMANCE_CAPS.bombs) {
+    bombs.splice(0, Math.max(1, bombs.length - PERFORMANCE_CAPS.bombs + 1));
   }
 
   const sortedTargets = getAllTargets()
@@ -3015,9 +3204,13 @@ function throwBombsAtNearestEnemies() {
       exploded: false,
     });
   }
+
+  trimArrayToCap(bombs, PERFORMANCE_CAPS.bombs);
 }
 
 function spawnMeteor() {
+  meteors = trimArrayToCap(Array.isArray(meteors) ? meteors : [], PERFORMANCE_CAPS.meteors);
+
   meteors.push({
     x: Math.random() * window.innerWidth,
     y: Math.random() * window.innerHeight,
@@ -3026,15 +3219,30 @@ function spawnMeteor() {
     warningTime: gameState.meteor.warningTime,
     hasHit: false,
   });
+
+  trimArrayToCap(meteors, PERFORMANCE_CAPS.meteors);
 }
 
 function createFlameZone(x, y, options = {}) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+    return;
+  }
+
+  const radius = options.radius ?? gameState.flameBurst.radius;
+  const duration = options.duration ?? gameState.flameBurst.duration;
+
+  if (!isFiniteNumber(radius) || !isFiniteNumber(duration) || radius <= 0 || duration <= 0) {
+    return;
+  }
+
+  flameZones = trimArrayToCap(Array.isArray(flameZones) ? flameZones : [], PERFORMANCE_CAPS.areaEffects);
+
   flameZones.push({
     x,
     y,
-    radius: options.radius ?? gameState.flameBurst.radius,
+    radius,
     age: 0,
-    duration: options.duration ?? gameState.flameBurst.duration,
+    duration,
     damagePerSecond: options.damagePerSecond ?? gameState.flameBurst.damagePerSecond,
     bossDamageMultiplier: options.bossDamageMultiplier ?? 1,
     source: options.source ?? "화염 폭발",
@@ -3047,9 +3255,7 @@ function createFlameZone(x, y, options = {}) {
     toxicExplosion: Boolean(options.toxicExplosion),
   });
 
-  if (flameZones.length > 24) {
-    flameZones.splice(0, flameZones.length - 24);
-  }
+  trimArrayToCap(flameZones, PERFORMANCE_CAPS.areaEffects);
 }
 
 function createAreaEffect(x, y, options = {}) {
@@ -3057,19 +3263,31 @@ function createAreaEffect(x, y, options = {}) {
 }
 
 function spawnSpecialProjectile(type, x, y, target, options = {}) {
-  if (!target || specialProjectiles.length >= MAX_SPECIAL_PROJECTILES) {
+  if (!isValidTarget(target) || !isFiniteNumber(x) || !isFiniteNumber(y)) {
     return;
   }
 
+  specialProjectiles = trimArrayToCap(Array.isArray(specialProjectiles) ? specialProjectiles : [], Math.min(MAX_SPECIAL_PROJECTILES, PERFORMANCE_CAPS.specialProjectiles));
+
+  if (specialProjectiles.length >= Math.min(MAX_SPECIAL_PROJECTILES, PERFORMANCE_CAPS.specialProjectiles)) {
+    specialProjectiles.splice(0, 1);
+  }
+
   const angle = Math.atan2(target.y - y, target.x - x);
+  const speed = options.speed ?? 0;
+  const radius = options.radius ?? 6;
+
+  if (!isFiniteNumber(speed) || !isFiniteNumber(radius) || radius <= 0) {
+    return;
+  }
 
   specialProjectiles.push({
     type,
     x,
     y,
-    vx: Math.cos(angle) * options.speed,
-    vy: Math.sin(angle) * options.speed,
-    radius: options.radius,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    radius,
     damage: options.damage,
     age: 0,
     lifetime: options.lifetime ?? 3,
@@ -3078,9 +3296,17 @@ function spawnSpecialProjectile(type, x, y, target, options = {}) {
     hitTargetKeys: new Set(),
     ...options,
   });
+
+  trimArrayToCap(specialProjectiles, Math.min(MAX_SPECIAL_PROJECTILES, PERFORMANCE_CAPS.specialProjectiles));
 }
 
 function spawnMeteorAt(x, y, options = {}) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+    return;
+  }
+
+  meteors = trimArrayToCap(Array.isArray(meteors) ? meteors : [], PERFORMANCE_CAPS.meteors);
+
   meteors.push({
     x,
     y,
@@ -3092,11 +3318,19 @@ function spawnMeteorAt(x, y, options = {}) {
     warningTime: options.warningTime ?? 0.65,
     hasHit: false,
   });
+
+  trimArrayToCap(meteors, PERFORMANCE_CAPS.meteors);
 }
 
 function addElectricMine(x, y, options = {}) {
-  if (electricMines.length >= MAX_ELECTRIC_MINES) {
-    electricMines.splice(0, electricMines.length - MAX_ELECTRIC_MINES + 1);
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+    return;
+  }
+
+  electricMines = trimArrayToCap(Array.isArray(electricMines) ? electricMines : [], Math.min(MAX_ELECTRIC_MINES, PERFORMANCE_CAPS.electricMines));
+
+  if (electricMines.length >= Math.min(MAX_ELECTRIC_MINES, PERFORMANCE_CAPS.electricMines)) {
+    electricMines.splice(0, 1);
   }
 
   electricMines.push({
@@ -3110,17 +3344,27 @@ function addElectricMine(x, y, options = {}) {
     color: options.color ?? "rgba(139, 233, 255, 0.42)",
     exploded: false,
   });
+
+  trimArrayToCap(electricMines, Math.min(MAX_ELECTRIC_MINES, PERFORMANCE_CAPS.electricMines));
 }
 
 function addEffect(effect) {
-  effects.push({ age: 0, ...effect });
-
-  if (effects.length > 180) {
-    effects.splice(0, effects.length - 180);
+  if (!effect || !isFiniteNumber(effect.duration) || effect.duration <= 0) {
+    return;
   }
+
+  effects = trimArrayToCap(Array.isArray(effects) ? effects : [], PERFORMANCE_CAPS.effects);
+  effects.push({ age: 0, ...effect });
+  trimArrayToCap(effects, PERFORMANCE_CAPS.effects);
 }
 
 function addFloatingText(text, x, y, color = "#ffffff", size = 18, duration = 0.9, options = {}) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(duration) || duration <= 0) {
+    return;
+  }
+
+  floatingTexts = trimArrayToCap(Array.isArray(floatingTexts) ? floatingTexts : [], PERFORMANCE_CAPS.floatingTexts);
+
   floatingTexts.push({
     text,
     x,
@@ -3134,9 +3378,7 @@ function addFloatingText(text, x, y, color = "#ffffff", size = 18, duration = 0.
     align: options.align,
   });
 
-  if (floatingTexts.length > 110) {
-    floatingTexts.splice(0, floatingTexts.length - 110);
-  }
+  trimArrayToCap(floatingTexts, PERFORMANCE_CAPS.floatingTexts);
 }
 
 function showBanner(text, color = "#ffd447") {
@@ -3172,7 +3414,12 @@ function triggerHitStop(duration = 0.04) {
 }
 
 function addParticleBurst(x, y, options = {}) {
-  const count = options.count ?? 5;
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+    return;
+  }
+
+  const mobileLimit = getResponsiveBalance() === mobileBalance ? 10 : 18;
+  const count = Math.min(options.count ?? 5, mobileLimit);
   const color = options.color ?? "#ffd447";
   const speed = options.speed ?? 120;
   const size = options.size ?? 3;
@@ -3249,6 +3496,10 @@ function addDamageText(target, damage, source) {
 }
 
 function createShockwave(x, y, radius, damage, force, color, source = "충격파") {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(radius) || !isFiniteNumber(damage) || radius <= 0) {
+    return;
+  }
+
   playExplosionSound();
   addScreenShake(4, 0.08);
 
@@ -3275,9 +3526,17 @@ function createShockwave(x, y, radius, damage, force, color, source = "충격파
 }
 
 function damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier = 1, knockback = 0, options = {}) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(radius) || !isFiniteNumber(damage) || radius <= 0) {
+    return 0;
+  }
+
   let hitCount = 0;
 
   for (const target of getAllTargets()) {
+    if (!isValidTarget(target)) {
+      continue;
+    }
+
     const distance = getDistance(x, y, target.x, target.y);
 
     if (distance < radius + target.radius) {
@@ -3291,6 +3550,10 @@ function damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplie
 }
 
 function explodeAt(x, y, radius, damage, color = "rgba(255, 212, 71, 0.5)", source = "폭발", bossDamageMultiplier = 0.45) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(radius) || !isFiniteNumber(damage) || radius <= 0) {
+    return;
+  }
+
   playExplosionSound();
   const hitCount = damageTargetsInRadius(x, y, radius, damage, source, bossDamageMultiplier, 8);
 
@@ -3311,6 +3574,10 @@ function explodeAt(x, y, radius, damage, color = "rgba(255, 212, 71, 0.5)", sour
 }
 
 function chainLightningFrom(x, y, damage, extraTargets = 0, bossDamageMultiplier = 1) {
+  if (!gameState?.chainLightning || !isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(damage)) {
+    return;
+  }
+
   const targets = getAllTargets()
     .map((target) => ({
       target,
@@ -3318,22 +3585,17 @@ function chainLightningFrom(x, y, damage, extraTargets = 0, bossDamageMultiplier
     }))
     .filter((entry) => entry.distance <= gameState.chainLightning.range)
     .sort((a, b) => a.distance - b.distance)
-    .slice(0, Math.min(6, gameState.chainLightning.maxTargets + extraTargets));
+    .slice(0, Math.min(MAX_LIGHTNING_CHAIN_TARGETS, gameState.chainLightning.maxTargets + extraTargets));
 
   for (const entry of targets) {
-    lightningLines.push({
+    addLightningLine({
       x1: x,
       y1: y,
       x2: entry.target.x,
       y2: entry.target.y,
-      age: 0,
       duration: 0.16,
     });
     damageTarget(entry.target, entry.target.kind === "boss" ? damage * bossDamageMultiplier : damage, 3, "번개 연쇄");
-  }
-
-  if (lightningLines.length > 48) {
-    lightningLines.splice(0, lightningLines.length - 48);
   }
 }
 
@@ -3395,15 +3657,14 @@ function fireLaserBeam() {
     }
   }
 
-  if (isSynergyActive("plasmaCuttingField")) {
+  if (canTriggerUltimateEffect("plasmaCuttingField", 0.45)) {
     for (const candidate of targets.slice(0, 5)) {
       chainLightningFrom(candidate.x, candidate.y, damage * 0.35, 2, 0.35);
     }
     addScreenShake(5, 0.1);
   }
 
-  lightningLines.push({ x1: player.x, y1: player.y, x2: endX, y2: endY, age: 0, duration: 0.22 });
-  if (lightningLines.length > 48) lightningLines.splice(0, lightningLines.length - 48);
+  addLightningLine({ x1: player.x, y1: player.y, x2: endX, y2: endY, duration: 0.22 });
 }
 
 // ===== 업데이트/충돌 =====
@@ -3542,6 +3803,10 @@ function updateTimedEffects(deltaTime) {
 
 function updateSpecialAbilities(deltaTime) {
   const abilities = gameState.specialAbilities;
+  if (!abilities) {
+    return;
+  }
+
   const target = findNearestTargetFrom(player.x, player.y);
 
   if (abilities.acidSpore.enabled) {
@@ -3654,7 +3919,11 @@ function updateSpecialAbilities(deltaTime) {
 }
 
 function createLavaFissure(x, y, scale = 1) {
-  const ability = gameState.specialAbilities.lavaFissure;
+  const ability = gameState.specialAbilities?.lavaFissure;
+  if (!ability) {
+    return;
+  }
+
   createAreaEffect(x, y, {
     kind: "lava",
     radius: ability.radius * scale,
@@ -3667,7 +3936,11 @@ function createLavaFissure(x, y, scale = 1) {
 }
 
 function createVoidRift(x, y, scale = 1, options = {}) {
-  const ability = gameState.specialAbilities.voidRift;
+  const ability = gameState.specialAbilities?.voidRift;
+  if (!ability) {
+    return;
+  }
+
   createAreaEffect(x, y, {
     kind: "void",
     radius: (options.radius ?? ability.radius) * scale,
@@ -3701,6 +3974,14 @@ function updateSynergies(deltaTime) {
   state.bloodCounterCooldown = Math.max(0, state.bloodCounterCooldown - deltaTime);
   state.knowledgeCooldown = Math.max(0, state.knowledgeCooldown - deltaTime);
   state.knowledgeBuffTimer = Math.max(0, state.knowledgeBuffTimer - deltaTime);
+  state.toxicExplosionCooldown = Math.max(0, (state.toxicExplosionCooldown ?? 0) - deltaTime);
+
+  const ultimateTimers = state.ultimateEffectCooldowns ?? {};
+  state.ultimateEffectCooldowns = ultimateTimers;
+
+  for (const key of Object.keys(ultimateTimers)) {
+    ultimateTimers[key] = Math.max(0, ultimateTimers[key] - deltaTime);
+  }
 
   if (isSynergyActive("rapidPierce")) {
     state.rapidPierceCooldown -= deltaTime;
@@ -3748,6 +4029,10 @@ function triggerKnowledgeSurge() {
 
 function updateBosses(deltaTime) {
   for (const boss of bosses) {
+    if (!isValidTarget(boss) || !isFiniteNumber(boss.speed)) {
+      continue;
+    }
+
     const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
     const timeSlowMultiplier =
       gameState.timeSlow.activeTimer > 0 ? gameState.timeSlow.bossMultiplier : 1;
@@ -3763,12 +4048,12 @@ function updateBosses(deltaTime) {
     const freezeSlow = boss.freezeTimer > 0 ? 0.55 : 1;
     boss.x += Math.cos(angle) * boss.speed * frostSlow * timeSlowMultiplier * freezeSlow * deltaTime;
     boss.y += Math.sin(angle) * boss.speed * frostSlow * timeSlowMultiplier * freezeSlow * deltaTime;
-    boss.touchCooldown = Math.max(0, boss.touchCooldown - deltaTime);
+    boss.touchCooldown = Math.max(0, (boss.touchCooldown ?? 0) - deltaTime);
     boss.hitFlashTimer = Math.max(0, (boss.hitFlashTimer ?? 0) - deltaTime);
     boss.thermalShatterCooldown = Math.max(0, (boss.thermalShatterCooldown ?? 0) - deltaTime);
 
     if (boss.bossType === "mid") {
-      boss.summonTimer -= deltaTime;
+      boss.summonTimer = (boss.summonTimer ?? 0) - deltaTime;
 
       if (boss.summonTimer <= 0) {
         summonBossMinions(boss);
@@ -3777,7 +4062,7 @@ function updateBosses(deltaTime) {
     }
 
     if (boss.bossType === "big") {
-      boss.shockwaveTimer -= deltaTime;
+      boss.shockwaveTimer = (boss.shockwaveTimer ?? 0) - deltaTime;
 
       if (boss.shockwaveTimer <= 0) {
         createBossShockwave(boss);
@@ -3786,7 +4071,7 @@ function updateBosses(deltaTime) {
     }
 
     if (boss.isFinalBoss) {
-      boss.shockwaveTimer -= deltaTime;
+      boss.shockwaveTimer = (boss.shockwaveTimer ?? 0) - deltaTime;
 
       if (boss.shockwaveTimer <= 0) {
         createFinalBossShockwave(boss);
@@ -3799,6 +4084,10 @@ function updateBosses(deltaTime) {
 function summonBossMinions(boss) {
   const difficulty = getDifficulty();
 
+  if (!isValidTarget(boss)) {
+    return;
+  }
+
   addEffect({
     type: "ring",
     x: boss.x,
@@ -3809,7 +4098,9 @@ function summonBossMinions(boss) {
   });
 
   for (let index = 0; index < 3; index++) {
-    if (enemies.length >= difficulty.maxEnemies) return;
+    enemies = trimArrayToCap(Array.isArray(enemies) ? enemies : [], PERFORMANCE_CAPS.enemies);
+
+    if (enemies.length >= Math.min(difficulty.maxEnemies, PERFORMANCE_CAPS.enemies)) return;
 
     const angle = (TAU * index) / 3 + Math.random() * 0.4;
     const type = enemyTypes.normal;
@@ -3871,14 +4162,36 @@ function createFinalBossShockwave(boss) {
 }
 
 function updateSpecialProjectiles(deltaTime) {
+  specialProjectiles = trimArrayToCap(Array.isArray(specialProjectiles) ? specialProjectiles : [], Math.min(MAX_SPECIAL_PROJECTILES, PERFORMANCE_CAPS.specialProjectiles));
+
   for (let index = specialProjectiles.length - 1; index >= 0; index--) {
     const projectile = specialProjectiles[index];
+
+    if (
+      !projectile ||
+      !isFiniteNumber(projectile.x) ||
+      !isFiniteNumber(projectile.y) ||
+      !isFiniteNumber(projectile.vx) ||
+      !isFiniteNumber(projectile.vy) ||
+      !isFiniteNumber(projectile.radius)
+    ) {
+      specialProjectiles.splice(index, 1);
+      continue;
+    }
+
     projectile.age += deltaTime;
     projectile.x += projectile.vx * deltaTime;
     projectile.y += projectile.vy * deltaTime;
 
     if (projectile.type === "fireball") {
-      const acidZone = flameZones.find((zone) => zone.kind === "acid" && getDistance(projectile.x, projectile.y, zone.x, zone.y) < zone.radius + projectile.radius);
+      const acidZone = flameZones.find((zone) => (
+        zone &&
+        zone.kind === "acid" &&
+        isFiniteNumber(zone.x) &&
+        isFiniteNumber(zone.y) &&
+        isFiniteNumber(zone.radius) &&
+        getDistance(projectile.x, projectile.y, zone.x, zone.y) < zone.radius + projectile.radius
+      ));
       if (acidZone && isSynergyActive("acidPyro")) {
         triggerAcidFireExplosion(projectile.x, projectile.y);
         specialProjectiles.splice(index, 1);
@@ -3913,6 +4226,16 @@ function updateSpecialProjectiles(deltaTime) {
 }
 
 function handleSpecialProjectileHit(projectile, target) {
+  if (!projectile || !isValidTarget(target)) {
+    return;
+  }
+
+  projectile.damage = isFiniteNumber(projectile.damage) ? projectile.damage : 0;
+  projectile.explosionRadius = isFiniteNumber(projectile.explosionRadius) ? projectile.explosionRadius : 48;
+  projectile.pullRadius = isFiniteNumber(projectile.pullRadius) ? projectile.pullRadius : 70;
+  projectile.poisonDuration = isFiniteNumber(projectile.poisonDuration) ? projectile.poisonDuration : 1.8;
+  projectile.freezeDuration = isFiniteNumber(projectile.freezeDuration) ? projectile.freezeDuration : 0.5;
+
   if (projectile.type === "fireball") {
     damageTarget(target, projectile.damage, 2, "화염구");
     explodeAt(projectile.x, projectile.y, projectile.explosionRadius, projectile.damage * 0.65, "rgba(255, 112, 67, 0.42)", "화염구", 0.45);
@@ -3964,8 +4287,24 @@ function handleSpecialProjectileHit(projectile, target) {
 }
 
 function updateElectricMines(deltaTime) {
+  electricMines = trimArrayToCap(Array.isArray(electricMines) ? electricMines : [], Math.min(MAX_ELECTRIC_MINES, PERFORMANCE_CAPS.electricMines));
+
   for (let index = electricMines.length - 1; index >= 0; index--) {
     const mine = electricMines[index];
+
+    if (
+      !mine ||
+      !isFiniteNumber(mine.x) ||
+      !isFiniteNumber(mine.y) ||
+      !isFiniteNumber(mine.radius) ||
+      !isFiniteNumber(mine.fuseTime)
+    ) {
+      electricMines.splice(index, 1);
+      continue;
+    }
+
+    mine.damage = isFiniteNumber(mine.damage) ? mine.damage : 0;
+    mine.age = mine.age ?? 0;
     mine.age += deltaTime;
 
     if (mine.age >= mine.fuseTime && !mine.exploded) {
@@ -3980,7 +4319,7 @@ function updateElectricMines(deltaTime) {
         freezeTargetsInRadius(mine.x, mine.y, mine.radius + 20, 1.1);
       }
 
-      if (isSynergyActive("plasmaCuttingField")) {
+      if (canTriggerUltimateEffect("plasmaCuttingField", 0.45)) {
         explodeAt(mine.x, mine.y, mine.radius + 24, mine.damage * 0.8 * getAttackMultiplier(), "rgba(139, 233, 255, 0.36)", "플라즈마 절단장", 0.35);
       }
     }
@@ -3992,7 +4331,7 @@ function updateElectricMines(deltaTime) {
 }
 
 function triggerAcidFireExplosion(x, y) {
-  const ultimate = isSynergyActive("toxicVolcanoCloud");
+  const ultimate = canTriggerUltimateEffect("toxicVolcanoCloud", 0.8);
   explodeAt(x, y, ultimate ? 92 : 68, (ultimate ? 4.4 : 2.8) * getAttackMultiplier(), "rgba(150, 255, 86, 0.44)", ultimate ? "맹독 화산운" : "산성 폭연", 0.5);
   createToxicCloud(x, y, ultimate ? 1.25 : 1);
 
@@ -4003,6 +4342,10 @@ function triggerAcidFireExplosion(x, y) {
 }
 
 function triggerCataclysmSingularity(x, y) {
+  if (!canTriggerUltimateEffect("cataclysmSingularity", 1.15)) {
+    return;
+  }
+
   addScreenShake(10, 0.18);
   createVoidRift(x, y, 1.18, {
     radius: 105,
@@ -4035,12 +4378,22 @@ function freezeTargetsInRadius(x, y, radius, duration) {
 }
 
 function updateBullets(deltaTime) {
+  bullets = trimArrayToCap(Array.isArray(bullets) ? bullets : [], PERFORMANCE_CAPS.bullets);
+
   for (const bullet of bullets) {
+    if (!bullet || !isFiniteNumber(bullet.x) || !isFiniteNumber(bullet.y) || !isFiniteNumber(bullet.vx) || !isFiniteNumber(bullet.vy)) {
+      continue;
+    }
+
     bullet.x += bullet.vx * deltaTime;
     bullet.y += bullet.vy * deltaTime;
   }
 
-  bullets = bullets.filter((bullet) => {
+  bullets = trimArrayToCap(bullets.filter((bullet) => {
+    if (!bullet || !isFiniteNumber(bullet.x) || !isFiniteNumber(bullet.y)) {
+      return false;
+    }
+
     const margin = 80;
 
     return (
@@ -4049,11 +4402,18 @@ function updateBullets(deltaTime) {
       bullet.y > -margin &&
       bullet.y < window.innerHeight + margin
     );
-  });
+  }), PERFORMANCE_CAPS.bullets);
 }
 
 function updateBombs(deltaTime) {
+  bombs = trimArrayToCap(Array.isArray(bombs) ? bombs : [], PERFORMANCE_CAPS.bombs);
+
   for (const bomb of bombs) {
+    if (!bomb || !isFiniteNumber(bomb.fuseTime)) {
+      continue;
+    }
+
+    bomb.age = bomb.age ?? 0;
     bomb.age += deltaTime;
 
     if (!bomb.exploded && bomb.age >= bomb.fuseTime) {
@@ -4072,7 +4432,10 @@ function updateBombs(deltaTime) {
     }
   }
 
-  bombs = bombs.filter((bomb) => bomb.age < bomb.fuseTime + 0.25);
+  bombs = trimArrayToCap(
+    bombs.filter((bomb) => bomb && isFiniteNumber(bomb.age) && isFiniteNumber(bomb.fuseTime) && bomb.age < bomb.fuseTime + 0.25),
+    PERFORMANCE_CAPS.bombs,
+  );
 }
 
 function handleBombSynergyExplosion(bomb) {
@@ -4090,9 +4453,23 @@ function handleBombSynergyExplosion(bomb) {
 }
 
 function updateFlameZones(deltaTime) {
+  flameZones = trimArrayToCap(Array.isArray(flameZones) ? flameZones : [], PERFORMANCE_CAPS.areaEffects);
   const expiredZones = [];
 
   for (const zone of flameZones) {
+    if (
+      !zone ||
+      !isFiniteNumber(zone.x) ||
+      !isFiniteNumber(zone.y) ||
+      !isFiniteNumber(zone.radius) ||
+      !isFiniteNumber(zone.duration) ||
+      zone.duration <= 0
+    ) {
+      expiredZones.push(zone);
+      continue;
+    }
+
+    zone.age = zone.age ?? 0;
     zone.age += deltaTime;
     zone.pulseTimer = Math.max(0, (zone.pulseTimer ?? 0) - deltaTime);
 
@@ -4120,6 +4497,10 @@ function updateFlameZones(deltaTime) {
           showText: false,
         });
 
+        if (!isValidTarget(target)) {
+          continue;
+        }
+
         if (
           isSynergyActive("thermalShatterSanctuary") &&
           (zone.kind === "fire" || zone.kind === "lava") &&
@@ -4143,10 +4524,13 @@ function updateFlameZones(deltaTime) {
     }
   }
 
-  flameZones = flameZones.filter((zone) => zone.age < zone.duration);
+  flameZones = trimArrayToCap(
+    flameZones.filter((zone) => zone && isFiniteNumber(zone.age) && isFiniteNumber(zone.duration) && zone.age < zone.duration),
+    PERFORMANCE_CAPS.areaEffects,
+  );
 
   for (const zone of expiredZones) {
-    if (zone.onExpireMeteor) {
+    if (zone?.onExpireMeteor && isFiniteNumber(zone.x) && isFiniteNumber(zone.y)) {
       spawnMeteorAt(zone.x, zone.y, {
         radius: zone.source === "대재앙 특이점" ? 76 : 58,
         damage: (zone.source === "대재앙 특이점" ? 5.2 : 3.2) * getAttackMultiplier(),
@@ -4157,7 +4541,19 @@ function updateFlameZones(deltaTime) {
 }
 
 function updateMeteors(deltaTime) {
+  meteors = trimArrayToCap(Array.isArray(meteors) ? meteors : [], PERFORMANCE_CAPS.meteors);
+
   for (const meteor of meteors) {
+    if (
+      !meteor ||
+      !isFiniteNumber(meteor.x) ||
+      !isFiniteNumber(meteor.y) ||
+      !isFiniteNumber(meteor.warningTime)
+    ) {
+      continue;
+    }
+
+    meteor.age = meteor.age ?? 0;
     meteor.age += deltaTime;
 
     if (!meteor.hasHit && meteor.age >= meteor.warningTime) {
@@ -4173,11 +4569,28 @@ function updateMeteors(deltaTime) {
     }
   }
 
-  meteors = meteors.filter((meteor) => meteor.age < meteor.warningTime + 0.35);
+  meteors = trimArrayToCap(
+    meteors.filter((meteor) => meteor && isFiniteNumber(meteor.age) && isFiniteNumber(meteor.warningTime) && meteor.age < meteor.warningTime + 0.35),
+    PERFORMANCE_CAPS.meteors,
+  );
 }
 
 function updateClones(deltaTime) {
+  clones = trimArrayToCap(Array.isArray(clones) ? clones : [], PERFORMANCE_CAPS.clones);
+
   for (const clone of clones) {
+    if (!clone || !isFiniteNumber(clone.x) || !isFiniteNumber(clone.y)) {
+      continue;
+    }
+
+    clone.followDistance = isFiniteNumber(clone.followDistance) ? clone.followDistance : 42;
+    clone.sideOffset = isFiniteNumber(clone.sideOffset) ? clone.sideOffset : 24;
+    clone.side = isFiniteNumber(clone.side) ? clone.side : 1;
+    clone.followSpeed = isFiniteNumber(clone.followSpeed) ? clone.followSpeed : 8;
+    clone.fireTimer = isFiniteNumber(clone.fireTimer) ? clone.fireTimer : 0;
+    clone.fireDelayMultiplier = isFiniteNumber(clone.fireDelayMultiplier) ? clone.fireDelayMultiplier : 1.2;
+    clone.damageMultiplier = isFiniteNumber(clone.damageMultiplier) ? clone.damageMultiplier : 0.72;
+
     const facingAngle = player.facingAngle ?? -Math.PI / 2;
     const backAngle = facingAngle + Math.PI;
     const sideAngle = facingAngle + Math.PI / 2;
@@ -4214,6 +4627,10 @@ function updateEnemies(deltaTime) {
     gameState.timeSlow.activeTimer > 0 ? gameState.timeSlow.multiplier : 1;
 
   for (const enemy of enemies) {
+    if (!isValidTarget(enemy) || !isFiniteNumber(enemy.speed)) {
+      continue;
+    }
+
     const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
     let speedMultiplier = timeSlowMultiplier;
     const distanceToPlayer = getDistance(player.x, player.y, enemy.x, enemy.y);
@@ -4268,15 +4685,22 @@ function updateEnemies(deltaTime) {
     enemy.x = clamp(enemy.x, -90, window.innerWidth + 90);
     enemy.y = clamp(enemy.y, -90, window.innerHeight + 90);
     enemy.hitFlashTimer = Math.max(0, (enemy.hitFlashTimer ?? 0) - deltaTime);
-    enemy.touchCooldown = Math.max(0, enemy.touchCooldown - deltaTime);
+    enemy.touchCooldown = Math.max(0, (enemy.touchCooldown ?? 0) - deltaTime);
   }
 }
 
 function updateExpOrbs(deltaTime) {
   const magnetRadius = player.magnetRadius * (gameState.magnetBoostTimer > 0 ? 4.2 : 1);
+  expOrbs = trimArrayToCap(Array.isArray(expOrbs) ? expOrbs : [], PERFORMANCE_CAPS.expOrbs);
 
   for (let index = expOrbs.length - 1; index >= 0; index--) {
     const orb = expOrbs[index];
+
+    if (!orb || !isFiniteNumber(orb.x) || !isFiniteNumber(orb.y) || !isFiniteNumber(orb.radius)) {
+      expOrbs.splice(index, 1);
+      continue;
+    }
+
     const distance = getDistance(player.x, player.y, orb.x, orb.y);
 
     if (distance < magnetRadius) {
@@ -4321,9 +4745,17 @@ function updateSupplyBoxes(deltaTime) {
     showBanner("보급 상자 등장!", "#64f7b4");
   }
 
+  supplyBoxes = trimArrayToCap(Array.isArray(supplyBoxes) ? supplyBoxes : [], PERFORMANCE_CAPS.supplyBoxes);
+
   for (let index = supplyBoxes.length - 1; index >= 0; index--) {
     const box = supplyBoxes[index];
 
+    if (!box || !isFiniteNumber(box.x) || !isFiniteNumber(box.y) || !isFiniteNumber(box.radius)) {
+      supplyBoxes.splice(index, 1);
+      continue;
+    }
+
+    box.age = box.age ?? 0;
     box.age += deltaTime;
 
     if (getDistance(player.x, player.y, box.x, box.y) < player.radius + box.radius) {
@@ -4356,11 +4788,25 @@ function updateAuraDamage(deltaTime) {
 
 function updateVisualEffects(deltaTime) {
   gameState.screenShakeTimer = Math.max(0, gameState.screenShakeTimer - deltaTime);
+  effects = trimArrayToCap(Array.isArray(effects) ? effects : [], PERFORMANCE_CAPS.effects);
+  lightningLines = trimArrayToCap(Array.isArray(lightningLines) ? lightningLines : [], PERFORMANCE_CAPS.lightningLines);
+  floatingTexts = trimArrayToCap(Array.isArray(floatingTexts) ? floatingTexts : [], PERFORMANCE_CAPS.floatingTexts);
 
   for (const effect of effects) {
+    if (!effect || !isFiniteNumber(effect.duration)) {
+      continue;
+    }
+
+    effect.age = effect.age ?? 0;
     effect.age += deltaTime;
 
     if (effect.type === "particle") {
+      if (!isFiniteNumber(effect.x) || !isFiniteNumber(effect.y)) {
+        continue;
+      }
+
+      effect.vx = isFiniteNumber(effect.vx) ? effect.vx : 0;
+      effect.vy = isFiniteNumber(effect.vy) ? effect.vy : 0;
       effect.x += effect.vx * deltaTime;
       effect.y += effect.vy * deltaTime;
       effect.vx *= Math.pow(0.08, deltaTime);
@@ -4369,17 +4815,28 @@ function updateVisualEffects(deltaTime) {
   }
 
   for (const line of lightningLines) {
+    if (!line || !isFiniteNumber(line.duration)) {
+      continue;
+    }
+
+    line.age = line.age ?? 0;
     line.age += deltaTime;
   }
 
   for (const text of floatingTexts) {
+    if (!text || !isFiniteNumber(text.duration)) {
+      continue;
+    }
+
+    text.age = text.age ?? 0;
+    text.vy = isFiniteNumber(text.vy) ? text.vy : 0;
     text.age += deltaTime;
     text.y += text.vy * deltaTime;
   }
 
-  effects = effects.filter((effect) => effect.age < effect.duration);
-  lightningLines = lightningLines.filter((line) => line.age < line.duration);
-  floatingTexts = floatingTexts.filter((text) => text.age < text.duration);
+  effects = trimArrayToCap(effects.filter((effect) => effect && isFiniteNumber(effect.age) && isFiniteNumber(effect.duration) && effect.age < effect.duration), PERFORMANCE_CAPS.effects);
+  lightningLines = trimArrayToCap(lightningLines.filter((line) => line && isFiniteNumber(line.age) && isFiniteNumber(line.duration) && line.age < line.duration), PERFORMANCE_CAPS.lightningLines);
+  floatingTexts = trimArrayToCap(floatingTexts.filter((text) => text && isFiniteNumber(text.age) && isFiniteNumber(text.duration) && text.age < text.duration), PERFORMANCE_CAPS.floatingTexts);
 }
 
 function applySupplyReward(x, y) {
@@ -4477,9 +4934,19 @@ function createSupplyBoxOpenEffect(x, y) {
 function handleBulletTargetCollisions() {
   for (let bulletIndex = bullets.length - 1; bulletIndex >= 0; bulletIndex--) {
     const bullet = bullets[bulletIndex];
+
+    if (!bullet || !isFiniteNumber(bullet.x) || !isFiniteNumber(bullet.y) || !(bullet.hitTargetKeys instanceof Set)) {
+      bullets.splice(bulletIndex, 1);
+      continue;
+    }
+
     let shouldRemoveBullet = false;
 
     for (const target of getAllTargets()) {
+      if (!isValidTarget(target)) {
+        continue;
+      }
+
       const distance = getDistance(bullet.x, bullet.y, target.x, target.y);
       const targetKey = getTargetKey(target);
 
@@ -4535,9 +5002,13 @@ function handleBulletTargetCollisions() {
 
 function handlePlayerTargetCollisions() {
   for (const target of getAllTargets()) {
+    if (!isValidTarget(target)) {
+      continue;
+    }
+
     const distance = getDistance(player.x, player.y, target.x, target.y);
 
-    if (distance < player.radius + target.radius && target.touchCooldown <= 0) {
+    if (distance < player.radius + target.radius && (target.touchCooldown ?? 0) <= 0) {
       target.touchCooldown = 0.7;
       damagePlayer(target.damage, true);
 
@@ -4614,13 +5085,13 @@ function triggerBloodCounter() {
 }
 
 function damageTarget(target, rawDamage, knockback, source, options = {}) {
-  if (!target || target.hp <= 0) {
+  if (!isValidTarget(target) || !isFiniteNumber(rawDamage)) {
     return false;
   }
 
   let finalDamage = rawDamage;
 
-  if (gameState.weakSpotEnabled && target.hp / target.maxHp <= 0.4) {
+  if (gameState.weakSpotEnabled && isFiniteNumber(target.maxHp) && target.maxHp > 0 && target.hp / target.maxHp <= 0.4) {
     finalDamage *= 1.35;
   }
 
@@ -4683,7 +5154,12 @@ function handleSynergyKillEffects(target, source) {
     addFloatingText(`+${healAmount}`, player.x, player.y - player.radius - 26, "#64f7b4", 16, 0.8);
   }
 
-  if (isSynergyActive("toxicVolcanoCloud") && /맹독 화산운/.test(source)) {
+  if (
+    isSynergyActive("toxicVolcanoCloud") &&
+    /맹독 화산운/.test(source) &&
+    (gameState.synergy.toxicExplosionCooldown ?? 0) <= 0
+  ) {
+    gameState.synergy.toxicExplosionCooldown = 0.12;
     explodeAt(target.x, target.y, 42, 1.4 * getAttackMultiplier(), "rgba(170, 255, 72, 0.34)", "맹독 화산운", 0.35);
   }
 }
@@ -4911,6 +5387,10 @@ function checkSynergies() {
   const ultimateSynergies = Object.values(synergyDefinitions).filter((synergy) => synergy.tier === "ultimate");
 
   for (const synergy of [...normalSynergies, ...ultimateSynergies]) {
+    if (!synergy?.id || typeof synergy.condition !== "function") {
+      continue;
+    }
+
     if (isSynergyActive(synergy.id)) {
       continue;
     }
@@ -4961,7 +5441,11 @@ function unlockSynergy(synergyId) {
 }
 
 function showSynergyUnlockPopup(synergy) {
-  if (!gameState) {
+  if (!gameState || !synergy?.id) {
+    return;
+  }
+
+  if (gameState.pendingSynergyPopups.some((queuedSynergy) => queuedSynergy?.id === synergy.id)) {
     return;
   }
 
@@ -4979,6 +5463,11 @@ function openNextSynergyPopup() {
   }
 
   const synergy = gameState.pendingSynergyPopups.shift();
+  if (!synergy?.id) {
+    openNextSynergyPopup();
+    return;
+  }
+
   const isUltimate = synergy.tier === "ultimate";
 
   if (synergyPopupKicker) synergyPopupKicker.textContent = isUltimate ? "궁극 시너지 각성!" : "히든 시너지 발견!";
@@ -5190,6 +5679,7 @@ function rerollUpgrades() {
 }
 
 function updateGame(deltaTime) {
+  cleanupRuntimeArrays();
   gameState.elapsedTime += deltaTime;
   gameState.hitStopCooldown = Math.max(0, gameState.hitStopCooldown - deltaTime);
   checkBossSpawn();
@@ -5222,6 +5712,7 @@ function updateGame(deltaTime) {
   handleBulletTargetCollisions();
   handlePlayerTargetCollisions();
   updateVisualEffects(deltaTime);
+  cleanupRuntimeArrays();
   updateHud();
 }
 
