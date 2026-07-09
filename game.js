@@ -110,6 +110,28 @@ const PERFORMANCE_CAPS = {
   lightningLines: 60,
   floatingTexts: 80,
 };
+const STACKABLE_UPGRADE_IDS = new Set([
+  "weapon-bomb",
+  "sharp-bullets",
+  "quick-hands",
+  "light-steps",
+  "sturdy-body",
+  "fast-learning",
+  "piercing-shot",
+  "magnet",
+  "vampire",
+  "refined-bullets",
+  "skilled-hands",
+  "agile-steps",
+  "steel-health",
+  "knowledge-absorption",
+  "reroll",
+  "deadly-bullets",
+  "storm-hands",
+  "gale-movement",
+  "giant-heart",
+  "explosive-growth",
+]);
 // 배포 기본값은 false다. true로 바꾸면 10분 대신 30초에 메인보스가 나와 테스트가 쉬워진다.
 const DEBUG_FAST_FINAL_BOSS = false;
 const FINAL_BOSS_TIME = DEBUG_FAST_FINAL_BOSS ? 30 : 600;
@@ -1427,7 +1449,7 @@ function resetGame(startImmediately = hasStartedGame) {
       fireball: { enabled: false, timer: 1.4, interval: 3.8, radius: 11, speed: 360, damage: 2.3, explosionRadius: 56 },
       electricMine: { enabled: false, timer: 2.2, interval: 5.4, radius: 54, damage: 2.4, fuseTime: 1.15 },
       laserBeam: { enabled: false, timer: 2.8, interval: 4.7, width: 18, range: 760, damage: 2.4 },
-      gravityShot: { enabled: false, timer: 2.5, interval: 5.8, radius: 12, speed: 320, damage: 1.5, pullRadius: 88 },
+      gravityShot: { enabled: false, timer: 2.5, interval: 5.8, radius: 12, speed: 310, damage: 1.75, pullRadius: 112 },
       lavaFissure: { enabled: false, timer: 3.5, interval: 7.2, radius: 74, duration: 3.2, damagePerSecond: 1.2 },
       poisonBlade: { enabled: false, timer: 1.6, interval: 2.6, radius: 9, speed: 430, damage: 1.4, poisonDuration: 2.6 },
       iceSpear: { enabled: false, timer: 2.0, interval: 4.2, radius: 8, speed: 470, damage: 1.8, freezeDuration: 0.9 },
@@ -2326,6 +2348,29 @@ function getUpgradeStackCount(upgradeId) {
   return Math.max(0, Math.floor(Number.isFinite(count) ? count : 0));
 }
 
+function isStackableUpgrade(upgrade) {
+  return Boolean(upgrade?.id && STACKABLE_UPGRADE_IDS.has(upgrade.id));
+}
+
+function getStackableEffectText(upgrade) {
+  const effectText = upgrade?.effectText ?? "";
+
+  if (!isStackableUpgrade(upgrade) || effectText.includes("중첩 가능")) {
+    return effectText;
+  }
+
+  return `${effectText.replace(/[.。]\s*$/u, "")}. 중첩 가능.`;
+}
+
+function getCurrentStackLabel(upgrade) {
+  if (!isStackableUpgrade(upgrade)) {
+    return "";
+  }
+
+  const stackCount = getUpgradeStackCount(upgrade.id);
+  return stackCount > 0 ? `현재 x${stackCount}` : "";
+}
+
 function getActiveSynergyList() {
   return Array.from(gameState?.activeSynergies ?? [])
     .map((synergyId) => synergyDefinitions[synergyId])
@@ -2626,9 +2671,38 @@ function unlockBombWeapon() {
   }
 }
 
+function getEarlyGameDifficultyMultiplier(time, difficultyKey) {
+  if (time >= 300) {
+    return {
+      hp: 1,
+      speed: 1,
+      spawn: 1,
+      maxEnemies: 1,
+    };
+  }
+
+  const profiles = {
+    normal: { start: 0.88, mid: 0.94 },
+    hard: { start: 0.82, mid: 0.9 },
+    hell: { start: 0.78, mid: 0.88 },
+  };
+  const profile = profiles[difficultyKey] ?? profiles.normal;
+  const value = time <= 120
+    ? profile.start + (profile.mid - profile.start) * (time / 120)
+    : profile.mid + (1 - profile.mid) * ((time - 120) / 180);
+
+  return {
+    hp: value,
+    speed: value,
+    spawn: value,
+    maxEnemies: Math.max(0.72, value),
+  };
+}
+
 function getDifficulty() {
   const time = gameState.elapsedTime;
   const config = getCurrentDifficultyConfig();
+  const earlyMultiplier = getEarlyGameDifficultyMultiplier(time, gameState.selectedDifficulty);
   let spawnDelay = 0.86;
   let enemySpeedBonus = 0;
   let maxEnemies = 61;
@@ -2668,11 +2742,12 @@ function getDifficulty() {
   }
 
   return {
-    spawnDelay: Math.max(0.34, spawnDelay) / getBossSpawnMultiplier() / config.spawnRateMultiplier,
+    spawnDelay: Math.max(0.34, spawnDelay) / getBossSpawnMultiplier() / config.spawnRateMultiplier / earlyMultiplier.spawn,
     enemySpeedBonus,
-    enemyHpMultiplier: enemyHpMultiplier * config.enemyHpMultiplier,
-    maxEnemies: Math.floor(maxEnemies * config.maxEnemyMultiplier),
-    maxEnemySpeed: maxEnemySpeed * config.enemySpeedMultiplier,
+    enemySpeedMultiplier: earlyMultiplier.speed,
+    enemyHpMultiplier: enemyHpMultiplier * config.enemyHpMultiplier * earlyMultiplier.hp,
+    maxEnemies: Math.floor(maxEnemies * config.maxEnemyMultiplier * earlyMultiplier.maxEnemies),
+    maxEnemySpeed: maxEnemySpeed * config.enemySpeedMultiplier * earlyMultiplier.speed,
   };
 }
 
@@ -2681,6 +2756,31 @@ function getBossSpawnMultiplier() {
   if (bosses.some((boss) => boss.bossType === "mid")) return 0.9;
   if (bosses.some((boss) => boss.bossType === "mini")) return 0.98;
   return 1;
+}
+
+function getLateGameExpMultiplier(time = gameState?.elapsedTime ?? 0) {
+  if (time >= 540) return 1.34;
+  if (time >= 420) return 1.23;
+  if (time >= 300) return 1.12;
+  return 1;
+}
+
+function getNextExpRequirement(currentRequirement) {
+  const time = gameState?.elapsedTime ?? 0;
+
+  if (time >= 540) {
+    return Math.floor(currentRequirement * 1.2 + 7);
+  }
+
+  if (time >= 420) {
+    return Math.floor(currentRequirement * 1.22 + 7);
+  }
+
+  if (time >= 300) {
+    return Math.floor(currentRequirement * 1.24 + 8);
+  }
+
+  return Math.floor(currentRequirement * 1.28 + 8);
 }
 
 function chooseEnemyType() {
@@ -2727,7 +2827,10 @@ function spawnEnemy() {
   }
 
   const type = chooseEnemyType();
-  const speed = Math.min((type.speed + difficulty.enemySpeedBonus) * getCurrentDifficultyConfig().enemySpeedMultiplier, difficulty.maxEnemySpeed);
+  const speed = Math.min(
+    (type.speed + difficulty.enemySpeedBonus) * getCurrentDifficultyConfig().enemySpeedMultiplier * difficulty.enemySpeedMultiplier,
+    difficulty.maxEnemySpeed,
+  );
   const maxHp = Math.ceil(type.hp * difficulty.enemyHpMultiplier);
 
   enemies.push({
@@ -3253,6 +3356,9 @@ function createFlameZone(x, y, options = {}) {
     pulseTimer: options.pulseTimer ?? 0,
     onExpireMeteor: Boolean(options.onExpireMeteor),
     toxicExplosion: Boolean(options.toxicExplosion),
+    endExplosionDamage: options.endExplosionDamage,
+    endExplosionRadius: options.endExplosionRadius,
+    endExplosionColor: options.endExplosionColor,
   });
 
   trimArrayToCap(flameZones, PERFORMANCE_CAPS.areaEffects);
@@ -4183,6 +4289,24 @@ function updateSpecialProjectiles(deltaTime) {
     projectile.x += projectile.vx * deltaTime;
     projectile.y += projectile.vy * deltaTime;
 
+    if (projectile.type === "gravity") {
+      const pullRadius = projectile.pullRadius ?? 90;
+      applyGravityPull(projectile.x, projectile.y, pullRadius, 34, deltaTime);
+      projectile.trailTimer = Math.max(0, (projectile.trailTimer ?? 0) - deltaTime);
+
+      if (projectile.trailTimer <= 0) {
+        projectile.trailTimer = 0.18;
+        addEffect({
+          type: "ring",
+          x: projectile.x,
+          y: projectile.y,
+          radius: Math.max(18, pullRadius * 0.32),
+          duration: 0.16,
+          color: "rgba(180, 108, 255, 0.28)",
+        });
+      }
+    }
+
     if (projectile.type === "fireball") {
       const acidZone = flameZones.find((zone) => (
         zone &&
@@ -4220,6 +4344,17 @@ function updateSpecialProjectiles(deltaTime) {
       projectile.y < -90 ||
       projectile.y > window.innerHeight + 90
     ) {
+      if (projectile.type === "gravity") {
+        createGravityField(projectile.x, projectile.y, {
+          radius: projectile.pullRadius ?? 96,
+          duration: 1.9,
+          pull: 92,
+          damagePerSecond: 0.55 * getAttackMultiplier(),
+          endExplosionDamage: 1.7 * getAttackMultiplier(),
+          endExplosionRadius: 72,
+        });
+      }
+
       specialProjectiles.splice(index, 1);
     }
   }
@@ -4244,19 +4379,29 @@ function handleSpecialProjectileHit(projectile, target) {
 
   if (projectile.type === "gravity") {
     damageTarget(target, projectile.damage, 1, "중력탄");
-    createAreaEffect(projectile.x, projectile.y, {
+    createGravityField(projectile.x, projectile.y, {
       kind: "gravity",
       radius: projectile.pullRadius,
-      duration: isSynergyActive("cataclysmSingularity") ? 2.2 : 1.5,
-      damagePerSecond: 0.45 * getAttackMultiplier(),
+      duration: isSynergyActive("cataclysmSingularity") ? 2.45 : 2.15,
+      damagePerSecond: 0.75 * getAttackMultiplier(),
       bossDamageMultiplier: 0.35,
       source: "중력탄",
-      color: "rgba(180, 108, 255, 0.18)",
-      pull: isSynergyActive("cataclysmSingularity") ? 95 : 58,
+      color: "rgba(97, 64, 180, 0.26)",
+      pull: isSynergyActive("cataclysmSingularity") ? 128 : 112,
+      endExplosionDamage: 2.5 * getAttackMultiplier(),
+      endExplosionRadius: 88,
     });
 
     if (isSynergyActive("gravityBomb")) {
-      explodeAt(projectile.x, projectile.y, 72, 3.2 * getAttackMultiplier(), "rgba(255, 212, 71, 0.42)", "중력 폭탄", 0.45);
+      explodeAt(projectile.x, projectile.y, 96, 4.2 * getAttackMultiplier(), "rgba(255, 212, 71, 0.46)", "중력 폭탄", 0.45);
+      addEffect({
+        type: "ring",
+        x: projectile.x,
+        y: projectile.y,
+        radius: 112,
+        duration: 0.38,
+        color: "rgba(255, 212, 71, 0.5)",
+      });
     }
 
     if (isSynergyActive("cataclysmSingularity")) {
@@ -4284,6 +4429,66 @@ function handleSpecialProjectileHit(projectile, target) {
     target.freezeTimer = Math.max(target.freezeTimer ?? 0, target.kind === "boss" ? projectile.freezeDuration * 0.35 : projectile.freezeDuration);
     addEffect({ type: "ring", x: target.x, y: target.y, radius: target.radius + 18, duration: 0.24, color: "rgba(139, 233, 255, 0.58)" });
   }
+}
+
+function applyGravityPull(x, y, radius, pullStrength, deltaTime) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(radius) || !isFiniteNumber(pullStrength) || radius <= 0) {
+    return;
+  }
+
+  for (const target of getAllTargets()) {
+    const distance = getDistance(x, y, target.x, target.y);
+
+    if (distance > radius + target.radius || target.lastGravityPullFrame === gameState.elapsedTime) {
+      continue;
+    }
+
+    target.lastGravityPullFrame = gameState.elapsedTime;
+    const angle = Math.atan2(y - target.y, x - target.x);
+    const falloff = clamp(1 - distance / Math.max(1, radius), 0.2, 1);
+    const bossScale = target.kind === "boss" ? 0.16 : 1;
+    target.x += Math.cos(angle) * pullStrength * falloff * bossScale * deltaTime;
+    target.y += Math.sin(angle) * pullStrength * falloff * bossScale * deltaTime;
+  }
+}
+
+function createGravityField(x, y, options = {}) {
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+    return;
+  }
+
+  const maxGravityFields = 4;
+  const gravityZones = flameZones.filter((zone) => zone?.kind === "gravity");
+
+  if (gravityZones.length >= maxGravityFields) {
+    const oldestGravityZone = gravityZones.sort((left, right) => (left.age ?? 0) - (right.age ?? 0))[gravityZones.length - 1];
+    flameZones = flameZones.filter((zone) => zone !== oldestGravityZone);
+  }
+
+  const radius = options.radius ?? 112;
+
+  createAreaEffect(x, y, {
+    kind: "gravity",
+    radius,
+    duration: options.duration ?? 2.35,
+    damagePerSecond: options.damagePerSecond ?? 0.75 * getAttackMultiplier(),
+    bossDamageMultiplier: options.bossDamageMultiplier ?? 0.35,
+    source: options.source ?? "중력장",
+    color: options.color ?? "rgba(97, 64, 180, 0.24)",
+    pull: options.pull ?? 112,
+    endExplosionDamage: options.endExplosionDamage ?? 2.4 * getAttackMultiplier(),
+    endExplosionRadius: options.endExplosionRadius ?? 86,
+    endExplosionColor: options.endExplosionColor ?? "rgba(180, 108, 255, 0.4)",
+  });
+
+  addEffect({
+    type: "ring",
+    x,
+    y,
+    radius,
+    duration: 0.32,
+    color: "rgba(180, 108, 255, 0.56)",
+  });
 }
 
 function updateElectricMines(deltaTime) {
@@ -4473,15 +4678,19 @@ function updateFlameZones(deltaTime) {
     zone.age += deltaTime;
     zone.pulseTimer = Math.max(0, (zone.pulseTimer ?? 0) - deltaTime);
 
+    if (zone.kind === "gravity" && zone.pull > 0) {
+      applyGravityPull(zone.x, zone.y, zone.radius, zone.pull, deltaTime);
+    }
+
     for (const target of getAllTargets()) {
       const distance = getDistance(zone.x, zone.y, target.x, target.y);
 
       if (distance < zone.radius + target.radius) {
-        if (zone.pull > 0 && target.kind !== "boss") {
+        if (zone.pull > 0 && zone.kind !== "gravity" && target.kind !== "boss") {
           const angle = Math.atan2(zone.y - target.y, zone.x - target.x);
           target.x += Math.cos(angle) * zone.pull * deltaTime;
           target.y += Math.sin(angle) * zone.pull * deltaTime;
-        } else if (zone.pull > 0 && target.kind === "boss") {
+        } else if (zone.pull > 0 && zone.kind !== "gravity" && target.kind === "boss") {
           const angle = Math.atan2(zone.y - target.y, zone.x - target.x);
           target.x += Math.cos(angle) * zone.pull * 0.18 * deltaTime;
           target.y += Math.sin(angle) * zone.pull * 0.18 * deltaTime;
@@ -4530,6 +4739,23 @@ function updateFlameZones(deltaTime) {
   );
 
   for (const zone of expiredZones) {
+    if (
+      zone?.kind === "gravity" &&
+      isFiniteNumber(zone.x) &&
+      isFiniteNumber(zone.y) &&
+      isFiniteNumber(zone.endExplosionDamage)
+    ) {
+      explodeAt(
+        zone.x,
+        zone.y,
+        zone.endExplosionRadius ?? Math.max(58, zone.radius * 0.72),
+        zone.endExplosionDamage,
+        zone.endExplosionColor ?? "rgba(180, 108, 255, 0.4)",
+        zone.source ?? "중력장",
+        0.35,
+      );
+    }
+
     if (zone?.onExpireMeteor && isFiniteNumber(zone.x) && isFiniteNumber(zone.y)) {
       spawnMeteorAt(zone.x, zone.y, {
         radius: zone.source === "대재앙 특이점" ? 76 : 58,
@@ -4892,7 +5118,8 @@ function applySupplyReward(x, y) {
     {
       text: "경험치 보너스!",
       apply() {
-        addExperience(25 + gameState.level * 5);
+        const expMultiplier = getLateGameExpMultiplier();
+        addExperience(Math.ceil((25 + gameState.level * 5) * (1 + (expMultiplier - 1) * 1.2)));
       },
     },
   ];
@@ -5173,10 +5400,12 @@ function defeatTarget(target) {
   playEnemyDeathSound();
   gameState.score += target.score;
   gameState.kills += 1;
-  spawnExpOrb(target.x, target.y, target.exp);
+  const expMultiplier = getLateGameExpMultiplier();
+  const expValue = Math.max(1, Math.ceil(target.exp * expMultiplier));
+  spawnExpOrb(target.x, target.y, expValue);
 
   if (target.type === "elite") {
-    spawnExpBurst(target.x, target.y, 2, Math.ceil(target.exp * 0.45));
+    spawnExpBurst(target.x, target.y, 2, Math.max(1, Math.ceil(expValue * 0.45)));
   }
 
   if (gameState.killHealChance > 0 && Math.random() < gameState.killHealChance) {
@@ -5226,7 +5455,10 @@ function defeatBoss(boss) {
   if (isFinalBoss) {
     gameState.finalBossDefeated = true;
   }
-  spawnExpBurst(boss.x, boss.y, boss.expOrbs, boss.exp);
+  const expMultiplier = getLateGameExpMultiplier();
+  const bossOrbCount = Math.max(1, Math.ceil(boss.expOrbs * (1 + (expMultiplier - 1) * 0.8)));
+  const bossExpValue = Math.max(1, Math.ceil(boss.exp * (1 + (expMultiplier - 1) * 0.45)));
+  spawnExpBurst(boss.x, boss.y, bossOrbCount, bossExpValue);
 
   for (let index = 0; index < boss.supplyDrops; index++) {
     spawnSupplyBox(boss.x + (index - 0.5) * 36, boss.y + Math.random() * 28 - 14);
@@ -5269,7 +5501,7 @@ function checkLevelUp() {
 
   gameState.exp -= gameState.expToNext;
   gameState.level += 1;
-  gameState.expToNext = Math.floor(gameState.expToNext * 1.28 + 8);
+  gameState.expToNext = getNextExpRequirement(gameState.expToNext);
   startLevelUp();
 }
 
@@ -5596,6 +5828,8 @@ function renderUpgradeChoices() {
   gameState.currentUpgrades.forEach((upgrade, index) => {
     const button = document.createElement("button");
     const rarity = rarityInfo[upgrade.rarity];
+    const stackLabel = getCurrentStackLabel(upgrade);
+    const effectText = getStackableEffectText(upgrade);
 
     button.className = `augment-card rarity-${upgrade.rarity}`;
     button.type = "button";
@@ -5605,10 +5839,11 @@ function renderUpgradeChoices() {
       <span class="augment-meta">
         <span class="augment-rarity">${rarity.label}</span>
         <span class="augment-type">${upgrade.type}</span>
+        ${stackLabel ? `<span class="augment-stack">${stackLabel}</span>` : ""}
       </span>
       <strong>${upgrade.name}</strong>
       <span class="augment-description">${upgrade.description}</span>
-      <span class="augment-effect">효과: ${upgrade.effectText}</span>
+      <span class="augment-effect">효과: ${effectText}</span>
     `;
     button.addEventListener("click", () => chooseUpgrade(upgrade, button));
     upgradeChoices.appendChild(button);
@@ -6312,9 +6547,13 @@ function drawEffects() {
 function drawFlameZones() {
   for (const zone of flameZones) {
     const alpha = Math.max(0, 1 - zone.age / zone.duration);
+    const lifeRatio = clamp(zone.age / Math.max(0.001, zone.duration), 0, 1);
+    const drawRadius = zone.kind === "gravity" && lifeRatio > 0.78
+      ? zone.radius * (1 - (lifeRatio - 0.78) * 0.55)
+      : zone.radius;
 
     ctx.beginPath();
-    ctx.arc(zone.x, zone.y, zone.radius, 0, TAU);
+    ctx.arc(zone.x, zone.y, drawRadius, 0, TAU);
     ctx.fillStyle = zone.color?.replace(/[\d.]+\)$/u, `${0.24 * alpha})`) ?? `rgba(255, 112, 67, ${0.22 * alpha})`;
     ctx.fill();
   }

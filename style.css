@@ -1208,6 +1208,17 @@ body {
   font-weight: 900;
 }
 
+.augment-stack {
+  display: inline-flex;
+  padding: 4px 9px;
+  border: 1px solid rgba(100, 247, 180, 0.42);
+  border-radius: 999px;
+  background: rgba(100, 247, 180, 0.14);
+  color: #64f7b4;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .augment-card strong {
   display: block;
   margin-bottom: 12px;
@@ -1530,7 +1541,8 @@ body {
   }
 
   .augment-rarity,
-  .augment-type {
+  .augment-type,
+  .augment-stack {
     padding: 3px 7px;
     font-size: 11px;
   }
